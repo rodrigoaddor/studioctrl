@@ -9,6 +9,7 @@ import {
   X,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { ScanQrCode } from "../components/scan-qr-code";
 import { ErrorNotice } from "../components/error-notice";
 import { ConnectionStatus } from "../components/connection-status";
 import { Button } from "../components/ui/button";
@@ -29,6 +30,8 @@ export function Connections() {
   const [formOpen, setFormOpen] = useState(false);
   const [error, setError] = useState("");
   const [connecting, setConnecting] = useState<Profile | null>(null);
+  const addressInput = useRef<HTMLInputElement>(null);
+  const passwordInput = useRef<HTMLInputElement>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const passwordDialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -217,6 +220,16 @@ export function Connections() {
                 <X />
               </Button>
             </div>
+            {!editing && (
+              <ScanQrCode
+                onScan={({ url, password }) => {
+                  if (addressInput.current) addressInput.current.value = url;
+                  if (passwordInput.current)
+                    passwordInput.current.value = password;
+                  setError("");
+                }}
+              />
+            )}
             <label className="mt-4 flex flex-col gap-[7px] text-xs">
               Connection name
               <Input
@@ -231,6 +244,7 @@ export function Connections() {
             <label className="mt-4 flex flex-col gap-[7px] text-xs">
               WebSocket address
               <Input
+                ref={addressInput}
                 name="url"
                 placeholder="ws://192.168.1.10:4455"
                 defaultValue={editing?.url ?? "ws://localhost:4455"}
@@ -241,6 +255,7 @@ export function Connections() {
             <label className="mt-4 flex flex-col gap-[7px] text-xs">
               Saved password
               <Input
+                ref={passwordInput}
                 name="password"
                 type="password"
                 defaultValue={editing?.password ?? ""}

@@ -18,6 +18,8 @@ Vite serves HTTPS using `.cert/cert.pem` and `.cert/key.pem`. The `.cert/` direc
 
 In OBS, open **Tools → WebSocket Server Settings**, enable the server, and note its address and password (the default port is 4455). Add a connection in studioctrl with a `ws://` or `wss://` URL, then connect. An empty password works when authentication is disabled in OBS.
 
+In **Add connection**, choose **Scan QR Code** to scan OBS’s connection QR with your camera, or use **Upload QR image** with a screenshot. Camera access needs a secure page and browser permission. Review the filled address/password, enter a connection name, and save. Enable **Remember password** explicitly if you want it stored; otherwise the app asks for it when connecting.
+
 ## Install as an app
 
 PWA support is enabled in production builds, including local preview:

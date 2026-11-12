@@ -28,6 +28,7 @@ For implementation changes, run `bun run test` and `bun run build`. Add focused 
 - `tests/screenshot-rendering.test.ts` covers decode-before-draw and obsolete frame rejection with controlled image/canvas doubles.
 - `tests/obs-preview-hook.test.tsx` covers source/collection/mode lifecycle cleanup.
 - `tests/scene-monitor.test.tsx` covers independent persisted mode settings, scene-name fallback, and the disabled Remote Preview option.
+- `tests/obs-qr.test.ts` covers OBS QR schemes, percent-encoded and absent passwords, IPv6, invalid ports/payloads, and credential-safe errors. `tests/qr-connections.test.tsx` covers scanned form values, explicit password persistence, camera failure/image upload, and cleanup/stale-result handling with a mocked decoder. These tests do not validate actual camera hardware or QR decoding.
 - `tests/profiles.test.ts` covers password persistence, malformed storage, and URL validation.
 - `tests/pwa-update.test.tsx` covers explicit update acceptance, postponement, connection/session guards, and update-error feedback. These mocks do not validate browser service-worker lifecycle behavior.
 
@@ -38,6 +39,7 @@ The protocol simulator is a controlled test double, not OBS. Passing tests do no
 Use an OBS instance and reachable WebSocket address supplied for testing. Record OBS version, browser/version, operating system, network/address scheme, and the date in the milestone acceptance notes when this is performed.
 
 1. Verify reachable OBS endpoints (including password-protected ones) show Online, unavailable endpoints show Offline, and badges update after endpoint availability changes. Save and edit a connection. Reload to confirm persistence. Verify passwords are omitted unless Remember password is enabled, and removed after opting out.
+   For QR import, open Add connection → Scan QR Code and scan OBS’s Connect Info QR using a camera or upload a screenshot. Verify the decoded address/password, percent-encoded special characters, authentication disabled, and explicit Remember password behavior. Test denied/missing camera access, unreadable/unrelated images, cancellation/close during permission and image requests, and camera release on success/close. Confirm a scan neither saves nor connects automatically.
 2. Connect with valid credentials, then verify clear feedback for invalid credentials and an unavailable endpoint. Confirm cancellation leaves no usable stale controls. While connected, confirm the brand link and Browser Back keep the active studio visible; **Exit** must disconnect and return to saved connections.
 3. Start with Studio Mode disabled. Confirm the gate appears and connecting leaves OBS unchanged; enable it using the explicit button.
 4. Compare scene order against the OBS Scenes dock at connection time and after reordering in OBS. Select scenes from the square button grid and confirm only Preview changes. Verify centered names, bottom state labels, and distinct Preview/Program borders. Check Program/Preview labels, including the case where both select the same scene.

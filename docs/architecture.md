@@ -21,6 +21,8 @@ The app is a browser-only SPA. It maintains one active OBS controller session at
 | `src/lib/screenshot-preview.ts` | Sequential capture/decode pacing and canvas presentation. |
 | `src/lib/monitor-settings.ts` | Per-profile, per-monitor browser-local preview mode preferences. |
 | `src/components/connection-status.tsx` | Per-profile reachability badge and automatic rechecks while mounted. |
+| `src/components/scan-qr-code.tsx` | Add-connection camera/image QR scanner with media lifecycle cleanup. |
+| `src/lib/obs-qr.ts` | OBS QR payload validation and credential extraction. |
 | `src/lib/profiles.ts` | Profile schema, URL normalization, and browser-local persistence. |
 | `src/pages/connections.tsx` | Profile forms, password prompt, connection selection, and navigation after connection. |
 | `src/pages/studio.tsx` | Studio Mode gate, current scenes, Preview selection, and transition controls. |
@@ -121,6 +123,10 @@ These are **scene screenshots**, including for the Program monitor. They are not
 Profiles are stored under `studioctrl.connections.v1` in localStorage with `id`, `name`, `url`, `rememberPassword`, and an optional `password`. Valid URLs use `ws://` or `wss://`, with no embedded credentials or fragment. Loading tolerates malformed storage and filters invalid entries.
 
 Only explicitly remembered passwords are persisted; opting out removes the password on save. Non-remembered passwords are requested when connecting. The live session snapshot omits the profile password. Remembered passwords are stored without encryption, as disclosed by the connection form.
+
+The add-connection form offers **Scan QR Code** using `qr-scanner` for camera capture or a local image/screenshot. Decoding stays in the browser; images and raw QR payloads are not persisted. `parseObsQr` accepts `obsws://host:port/password` and `obswss://host:port/password`, maps them to `ws://`/`wss://`, validates the host and port, and percent-decodes the password. The password segment is optional for authentication-disabled OBS. This follows [OBS QR generation](https://github.com/obsproject/obs-websocket/blob/master/src/forms/ConnectInfo.cpp). Scan errors never echo the credential-bearing payload.
+
+A valid scan fills only the address and password for review; it does not save, connect, or enable password remembering. Camera capture starts only after the Scan action and is stopped on success, cancellation, dialog close, or unmount, including permission requests that settle after cleanup. Camera failures leave local image upload and manual entry available. Camera access requires browser permission and a secure context.
 
 Changes to the persisted schema need an explicit migration/compatibility decision. Keep credential handling within the profile and connection boundaries.
 

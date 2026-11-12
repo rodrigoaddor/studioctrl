@@ -23,6 +23,7 @@ Delivered scope:
 
 - Connection page with profile creation, editing, deletion, selection, and connection, plus automatically refreshed per-profile Online/Offline reachability badges.
 - Optional remembered passwords and a connection-time prompt otherwise.
+- Add-connection QR scanning via camera or uploaded image/screenshot, filling OBS address/password for review without saving or connecting automatically. Parser and scanner lifecycle/form regressions pass; real camera/image browser acceptance remains outstanding.
 - Studio Mode gate with an enable button.
 - Separate 16:9 Preview and Program monitors with OBS screenshot playback or centered scene-name fallback, independent source menus, top-left indicators, and scene-tile indicators.
 - Square scene buttons below both monitors have centered names, bottom Preview/Program labels, and selection-colored borders; scene selection changes Preview only.
