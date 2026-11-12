@@ -69,7 +69,7 @@ it("redirects the connections route to the active studio", () => {
   render(app("/"));
   expect(screen.getByLabelText("Current route")).toHaveTextContent("/studio");
   expect(
-    screen.getByRole("heading", { name: "Main studio" }),
+    screen.getByText("Connected to Main studio"),
   ).toBeInTheDocument();
   expect(
     screen.queryByRole("button", { name: "Add connection" }),

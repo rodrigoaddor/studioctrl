@@ -1,4 +1,4 @@
-# studioctrl
+# StudioCTRL
 
 A desktop-first remote controller for OBS Studio Mode. React, TypeScript, Vite, React Router, Tailwind CSS, and shadcn/ui components. Connects directly using the OBS WebSocket v5 protocol through `obs-websocket-js`.
 
@@ -16,7 +16,7 @@ bun run dev
 
 Vite serves HTTPS using `.cert/cert.pem` and `.cert/key.pem`. The `.cert/` directory is ignored by Git; reuse an existing pair if already configured. Resolve `studioctrl.d.rodr.dev` to your development machine and open `https://studioctrl.d.rodr.dev:5173` (or Vite’s selected port). The supplied certificate covers that hostname; other hostnames need their own certificate coverage. Vite’s configured host allowlist is `.d.rodr.dev`, covering the domain and its subdomains.
 
-In OBS, open **Tools → WebSocket Server Settings**, enable the server, and note its address and password (the default port is 4455). Add a connection in studioctrl with a `ws://` or `wss://` URL, then connect. An empty password works when authentication is disabled in OBS.
+In OBS, open **Tools → WebSocket Server Settings**, enable the server, and note its address and password (the default port is 4455). Add a connection in StudioCTRL with a `ws://` or `wss://` URL, then connect. An empty password works when authentication is disabled in OBS.
 
 In **Add connection**, choose **Scan QR Code** to scan OBS’s connection QR with your camera, or use **Upload QR image** with a screenshot. Camera access needs a secure page and browser permission. Review the filled address/password, enter a connection name, and save. Enable **Remember password** explicitly if you want it stored; otherwise the app asks for it when connecting.
 
@@ -33,7 +33,7 @@ Open the trusted HTTPS preview URL printed by Vite using the certificate hostnam
 
 After the first successful load and service-worker installation, the app shell can open without the app server. OBS control always requires a reachable OBS WebSocket connection; a cached app opens disconnected. Saved profiles remain local to that browser/origin, and may need to be entered again in an installed app depending on browser storage behavior.
 
-New releases show **Reload to update** with a **Later** option. Disconnect OBS in every open studioctrl window before accepting; updating can reload those windows. This window’s reload action stays disabled until disconnected. Reopen the app to check for a new release; closing all windows can also apply a waiting update.
+New releases show **Reload to update** with a **Later** option. Disconnect OBS in every open StudioCTRL window before accepting; updating can reload those windows. This window’s reload action stays disabled until disconnected. Reopen the app to check for a new release; closing all windows can also apply a waiting update.
 
 Cloudflare Workers deployment is configured below. See the [PWA architecture contract](docs/architecture.md#pwa-and-application-updates) for cache behavior.
 

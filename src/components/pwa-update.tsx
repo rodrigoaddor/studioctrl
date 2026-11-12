@@ -29,7 +29,7 @@ export function PwaUpdate() {
       className="fixed right-6 bottom-6 z-40 flex w-[calc(100%-3rem)] max-w-md flex-col gap-3 border border-border bg-popover p-4 text-xs text-popover-foreground shadow-md max-[720px]:right-4 max-[720px]:w-[calc(100%-2rem)]"
     >
       <p role="status">
-        Update available. Reloads all open studioctrl windows; disconnect OBS in each window first.
+        Update available. Reloads all open StudioCTRL windows; disconnect OBS in each window first.
         {status !== "disconnected" && " Exit this session to update."}
       </p>
       {error && <p role="alert">Update failed. Try again when the app server is reachable.</p>}

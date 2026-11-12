@@ -10,7 +10,6 @@ export function Studio() {
   const {
     client,
     status,
-    profile,
     studio,
     scenes,
     program,
@@ -22,14 +21,9 @@ export function Studio() {
   const disabled = busy || syncing;
   return (
     <main className="mx-auto w-[calc(100%-3rem)] max-w-[1200px] py-6 max-[720px]:w-[calc(100%-2rem)] max-[720px]:py-4">
-      <div className="mb-5 flex items-center justify-between gap-4 max-[720px]:gap-3">
-        <h1 className="m-0 text-xl leading-[1.3] font-semibold tracking-[-0.5px]">
-          {profile?.name}
-        </h1>
-      </div>
       {!studio ? (
         <section className="border border-border p-6">
-          <h2 className="m-0 text-sm font-medium">Studio Mode is disabled</h2>
+          <h2 className="font-heading m-0 text-sm font-medium">Studio Mode is disabled</h2>
           <p className="mt-2 text-xs leading-[1.6] text-muted-foreground">
             Enable Studio Mode to control Preview and transitions.
           </p>
@@ -62,7 +56,7 @@ export function Studio() {
           </section>
           <section aria-label="Scenes">
             <div className="mb-3 flex min-h-6 items-center justify-between gap-3">
-              <h2 className="m-0 flex items-center gap-[7px] text-[13px] font-medium [&>svg]:text-muted-foreground">
+              <h2 className="font-heading m-0 flex items-center gap-[7px] text-[13px] font-medium [&>svg]:text-muted-foreground">
                 <Layers size={17} /> Scenes{" "}
                 <span className="bg-muted px-[5px] py-px text-[11px] text-muted-foreground">
                   {scenes.length}

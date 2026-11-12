@@ -14,8 +14,8 @@ export default defineConfig(({ command, mode }) => ({
       includeAssets: ["favicon.svg", "apple-touch-icon.png"],
       manifest: {
         id: "/",
-        name: "studioctrl — OBS Studio Controller",
-        short_name: "studioctrl",
+        name: "StudioCTRL",
+        short_name: "StudioCTRL",
         description: "A focused remote controller for OBS Studio Mode.",
         start_url: "/",
         scope: "/",

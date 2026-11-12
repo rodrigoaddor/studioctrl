@@ -50,7 +50,7 @@ export function SceneMonitor({
       {phase !== "live" && (
         <div className="absolute inset-0 grid place-items-center px-6 py-12">
           <h2
-            className="line-clamp-3 text-center text-xl font-medium wrap-anywhere max-[720px]:text-base"
+            className="font-heading line-clamp-3 text-center text-xl font-medium wrap-anywhere max-[720px]:text-base"
             title={sceneName ?? undefined}
           >
             {sceneName ?? `No ${kind} scene`}

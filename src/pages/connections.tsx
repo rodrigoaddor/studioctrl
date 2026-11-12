@@ -94,7 +94,7 @@ export function Connections() {
   return (
     <main className="mx-auto w-[calc(100%-3rem)] max-w-[1200px] py-6 max-[720px]:w-[calc(100%-2rem)] max-[720px]:py-4">
       <div className="mb-5 flex items-center justify-between gap-4 max-[720px]:gap-3">
-        <h1 className="m-0 text-xl leading-[1.3] font-semibold tracking-[-0.5px]">
+        <h1 className="font-heading m-0 text-xl leading-[1.3] font-semibold tracking-[-0.5px]">
           Connections
         </h1>
         <Button
@@ -117,7 +117,7 @@ export function Connections() {
             key={p.id}
           >
             <div className="mb-1.5 flex items-start justify-between gap-2">
-              <h2 className="min-w-0 text-[15px] font-medium wrap-anywhere">
+              <h2 className="font-heading min-w-0 text-[15px] font-medium wrap-anywhere">
                 {p.name}
               </h2>
               <ConnectionStatus key={p.url} url={p.url} name={p.name} />
@@ -188,7 +188,7 @@ export function Connections() {
         ))}
         {profiles.length === 0 && (
           <section className="col-span-full border border-dashed border-border p-6 text-center">
-            <h2 className="m-0 text-sm font-medium">No saved connections</h2>
+            <h2 className="font-heading m-0 text-sm font-medium">No saved connections</h2>
             <p className="mt-2 text-xs leading-[1.6] text-muted-foreground">
               Add an OBS WebSocket connection.
             </p>
@@ -207,7 +207,7 @@ export function Connections() {
         {formOpen && (
           <form onSubmit={save} key={editing?.id ?? "new"}>
             <div className="flex items-center justify-between gap-2.5">
-              <h2 className="m-0 text-base font-medium">
+              <h2 className="font-heading m-0 text-base font-medium">
                 {editing ? "Edit connection" : "New connection"}
               </h2>
               <Button
@@ -308,7 +308,7 @@ export function Connections() {
             }}
           >
             <div className="flex items-center justify-between gap-2.5">
-              <h2 className="m-0 text-base font-medium">
+              <h2 className="font-heading m-0 text-base font-medium">
                 Connect to {connecting.name}
               </h2>
               <Button

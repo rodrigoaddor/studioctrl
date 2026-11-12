@@ -6,7 +6,7 @@ import { useStudio } from "./context";
 import { Connections } from "./pages/connections";
 import { Studio } from "./pages/studio";
 export default function App() {
-  const { client, status, syncing, error } = useStudio();
+  const { client, status, profile, syncing, error } = useStudio();
   const navigate = useNavigate();
   function exit() {
     client.disconnect();
@@ -25,23 +25,32 @@ export default function App() {
         </div>
         <Link
           to={status === "connected" ? "/studio" : "/"}
-          className="flex items-center justify-self-center text-base font-semibold tracking-[-0.5px]"
+          aria-label="StudioCTRL"
+          className="flex items-baseline justify-self-center font-heading text-base font-extrabold tracking-[-0.5px]"
         >
-          <span className="mr-2 grid place-items-center text-foreground">
+          <span className="mr-2 grid place-items-center self-center text-foreground">
             <Cast size={20} />
           </span>
-          studio<span className="font-normal">ctrl</span>
+          <span className="text-lg">
+            studio<span className="ml-0.5 text-xs font-bold">CTRL</span>
+          </span>
         </Link>
-        <div className="flex items-center justify-self-end gap-3 max-[720px]:gap-2">
+        <div className="flex min-w-0 max-w-full items-center justify-self-end gap-3 max-[720px]:gap-2">
           {status === "connected" && (
             <>
-              <span className="flex items-center gap-1.5 text-xs text-foreground max-[720px]:text-[11px]">
-                <Circle size={7} fill="currentColor" />
-                <span className="max-[600px]:sr-only">Connected to OBS</span>
+              <span className="flex min-w-0 items-center gap-1.5 text-xs text-foreground max-[720px]:text-[11px]">
+                <Circle size={7} fill="currentColor" className="shrink-0" />
+                <span
+                  className="truncate max-[600px]:sr-only"
+                  title={`Connected to ${profile?.name}`}
+                >
+                  Connected to {profile?.name}
+                </span>
               </span>
               <Button
                 variant="ghost"
                 size="icon"
+                className="shrink-0"
                 aria-label="Refresh OBS state"
                 title="Refresh OBS state"
                 aria-disabled={syncing}
