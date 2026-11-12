@@ -10,6 +10,8 @@ Use `bun install --frozen-lockfile` to verify an unchanged lockfile. Use `bun ad
 
 Run tests through `bun run test` so they use Vitest and the configured DOM environments. The command `bun test` invokes Bun's separate test runner.
 
+Local development and preview require the ignored mkcert pair described in [README](../README.md). Tests and production builds deliberately skip loading it, allowing CI and fresh checkouts to validate without private keys. When changing TLS configuration, verify an HTTPS response with the certificate’s hostname and confirm `.cert/` remains ignored.
+
 ## Choosing verification
 
 For implementation changes, run `bun run test` and `bun run build`. Add focused regression coverage for new behavior or fixed bugs where useful. Report failures or checks that could not run.

@@ -24,6 +24,12 @@ The app is a browser-only SPA. It maintains one active OBS controller session at
 
 Routes use React Router's `BrowserRouter`: `/` manages connections and `/studio` displays the controller. The studio route returns to connections without an active session. During an active connection, the connections route redirects to the studio and the brand link stays in the studio. The single **Exit** button disconnects and returns to connections; saved profiles remain available for the next session. Browser Back cannot open the connection manager while a session remains active. Static hosts need an `index.html` fallback for client routes.
 
+## Local HTTPS
+
+`vite.config.ts` loads `.cert/key.pem` and `.cert/cert.pem` relative to the config file when running a server outside test mode. Development and Vite preview use this local TLS configuration; tests and production builds do not read or require the certificate files. `/.cert/` is ignored by Git.
+
+The configured `server.allowedHosts` is `[".d.rodr.dev"]`, inherited by preview. This permits `d.rodr.dev` and its subdomains in Vite’s hostname matching. Vite skips that check under HTTPS, so the allowlist is configuration, not HTTPS host enforcement. The supplied certificate covers `studioctrl.d.rodr.dev`; DNS resolution and certificate trust are configured on the development machine. See [README](../README.md) for local setup and [Vite server options](https://vite.dev/config/server-options.html#server-allowedhosts) for hostname matching behavior.
+
 ## UI theme and density
 
 Use shadcn/ui preset `b1Zirub0S`: Lyra style, mist base, blue theme/chart colors, Lucide icons, Inter font, default radius, and subtle menu accents. The component base is Radix (`radix-lyra` in `components.json`). Button, Input, ButtonGroup, and DropdownMenu come from that preset; Inter is bundled through `@fontsource-variable/inter`.

@@ -12,7 +12,7 @@ This file owns product scope, decisions, milestone status, and deferred work. Se
 - Operate only in Studio Mode. If disabled, offer an explicit enable button; connecting alone must not enable it.
 - Keep one active OBS session at a time. **Exit** disconnects and returns to the connection manager; managing multiple simultaneous sessions is outside scope.
 - Save connection profiles locally. Remembering a password is an explicit option, off by default.
-- The initial controller shows scene names and selections. Video previews, PWA installation, and hosting/TLS work are deferred.
+- The initial controller shows scene names and selections. Video previews, PWA installation, and production hosting/TLS work are deferred. Local development HTTPS uses an ignored mkcert certificate.
 
 ## M1 — Base controller
 
@@ -62,7 +62,7 @@ Acceptance: both panels have clearly identified sources, useful loading/error st
 
 ## M4 — Installable PWA and deployment
 
-**Status: deferred at the user's request.**
+**Status: PWA installation and production deployment deferred; local Vite HTTPS with mkcert implemented.**
 
 Add installation and a deliberate application update/cache strategy after the base controller is established. Choose hosting and resolve secure-context, WS/WSS, and browser network-access behavior for the intended OBS address. Direct WebSocket connectivity remains the selected architecture; a proxy is a future decision if required by deployment constraints.
 

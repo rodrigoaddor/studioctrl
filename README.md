@@ -1,6 +1,6 @@
 # studioctrl
 
-A desktop-first remote controller for OBS Studio Mode. React, TypeScript, Vite, React Router, Tailwind CSS, and shadcn/ui UI components. Connects directly using the OBS WebSocket v5 protocol through `obs-websocket-js`.
+A desktop-first remote controller for OBS Studio Mode. React, TypeScript, Vite, React Router, Tailwind CSS, and shadcn/ui components. Connects directly using the OBS WebSocket v5 protocol through `obs-websocket-js`.
 
 ## Run locally
 
@@ -8,10 +8,15 @@ Use Bun 1.4.4 for dependency management and scripts. Node.js 22.12+ is required 
 
 ```sh
 bun install
+mkcert -install
+mkdir -p .cert
+mkcert -key-file .cert/key.pem -cert-file .cert/cert.pem studioctrl.d.rodr.dev
 bun run dev
 ```
 
-Open the URL Vite prints. In OBS, open **Tools → WebSocket Server Settings**, enable the server, and note its address and password (the default port is 4455). Add a connection in studioctrl with a `ws://` or `wss://` URL, then connect. An empty password works when authentication is disabled in OBS.
+Vite serves HTTPS using `.cert/cert.pem` and `.cert/key.pem`. The `.cert/` directory is ignored by Git; reuse an existing pair if already configured. Resolve `studioctrl.d.rodr.dev` to your development machine and open `https://studioctrl.d.rodr.dev:5173` (or Vite’s selected port). The supplied certificate covers that hostname; other hostnames need their own certificate coverage. Vite’s configured host allowlist is `.d.rodr.dev`, covering the domain and its subdomains.
+
+ In OBS, open **Tools → WebSocket Server Settings**, enable the server, and note its address and password (the default port is 4455). Add a connection in studioctrl with a `ws://` or `wss://` URL, then connect. An empty password works when authentication is disabled in OBS.
 
 ## Documentation
 
