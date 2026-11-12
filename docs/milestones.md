@@ -13,7 +13,7 @@ This file owns product scope, decisions, milestone status, and deferred work. Se
 - Operate only in Studio Mode. If disabled, offer an explicit enable button; connecting alone must not enable it.
 - Keep one active OBS session at a time. **Exit** disconnects and returns to the connection manager; managing multiple simultaneous sessions is outside scope.
 - Save connection profiles locally. Remembering a password is an explicit option, off by default.
-- The controller includes scene selection and configurable OBS screenshot previews. Remote streams, PWA installation, and production hosting/TLS work are deferred. Local development HTTPS uses an ignored mkcert certificate.
+- The controller includes scene selection, configurable OBS screenshot previews, and production PWA support. Cloudflare Workers Static Assets is the configured hosting target; production deployment and network acceptance remain outstanding. Remote streams remain deferred. Local development HTTPS uses an ignored mkcert certificate.
 
 ## M1 — Base controller
 
@@ -71,9 +71,13 @@ Remaining acceptance:
 
 ## M4 — Installable PWA and deployment
 
-**Status: PWA installation and production deployment deferred; local Vite HTTPS with mkcert implemented.**
+**Status: PWA and Cloudflare Workers deployment setup implemented; browser installation/update acceptance and production deployment remain outstanding. Local Vite HTTPS with mkcert is implemented.**
 
-Add installation and a deliberate application update/cache strategy after the base controller is established. Choose hosting and resolve secure-context, WS/WSS, and browser network-access behavior for the intended OBS address. Direct WebSocket connectivity remains the selected architecture; a proxy is a future decision if required by deployment constraints.
+Delivered on 2026-11-12: standalone web manifest, regular/maskable/Apple icons derived from the Cast favicon, production-only app-shell precaching with route fallback, and an explicit update prompt. Applying updates is blocked while this window has an OBS session or connection attempt. Other open windows must be disconnected before accepting an update. Cached startup remains disconnected; no OBS state or screenshots are cached. Automated update-prompt checks and production service-worker generation passed; installation and two-release updates have not been exercised in a browser.
+
+Cloudflare Workers Static Assets setup added on 2026-11-12: root Wrangler config serving `dist/` with SPA fallback, pinned Wrangler tooling through `bun.lock`, build/deploy/dry-run/local-preview scripts, PWA cache headers, and local/Workers Builds instructions. Production build, Wrangler deployment dry run, and local HTTP checks passed for root/studio fallback, service-worker and manifest content types, and cache headers. No upload or account/domain configuration has been performed.
+
+Resolve secure-context, WS/WSS, and browser network-access behavior for the intended OBS address. Direct WebSocket connectivity remains the selected architecture; a proxy is a future decision if required by deployment constraints. See [development](development.md#pwa-acceptance-checklist) for remaining validation, including deployment rollouts with clients using an older release.
 
 Acceptance: verify installation and updates in the supported browsers, document a working deployment/network configuration, and show an honest disconnected state when OBS cannot be reached. Cached assets must not imply that live OBS control works offline.
 

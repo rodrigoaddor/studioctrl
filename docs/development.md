@@ -10,7 +10,9 @@ Use `bun install --frozen-lockfile` to verify an unchanged lockfile. Use `bun ad
 
 Run tests through `bun run test` so they use Vitest and the configured DOM environments. The command `bun test` invokes Bun's separate test runner.
 
-Local development and preview require the ignored mkcert pair described in [README](../README.md). Tests and production builds deliberately skip loading it, allowing CI and fresh checkouts to validate without private keys. When changing TLS configuration, verify an HTTPS response with the certificate’s hostname and confirm `.cert/` remains ignored.
+Vite development and preview require the ignored mkcert pair described in [README](../README.md). Tests and production builds deliberately skip loading it, allowing CI and fresh checkouts to validate without private keys. When changing TLS configuration, verify an HTTPS response with the certificate’s hostname and confirm `.cert/` remains ignored.
+
+Wrangler is a development dependency for Cloudflare Workers Static Assets. `bun run deploy:check` rebuilds and validates the deployment configuration locally without uploading or requiring login. `bun run preview:worker` rebuilds and serves the result using Wrangler on localhost; unlike Vite development/preview, this command does not load mkcert files. Wrangler state (`.wrangler/`) and local environment values (`.dev.vars*`, `.env*`) are ignored. Use the [README deployment instructions](../README.md#deploy-to-cloudflare-workers) for authentication and Workers Builds settings.
 
 ## Choosing verification
 
@@ -27,6 +29,7 @@ For implementation changes, run `bun run test` and `bun run build`. Add focused 
 - `tests/obs-preview-hook.test.tsx` covers source/collection/mode lifecycle cleanup.
 - `tests/scene-monitor.test.tsx` covers independent persisted mode settings, scene-name fallback, and the disabled Remote Preview option.
 - `tests/profiles.test.ts` covers password persistence, malformed storage, and URL validation.
+- `tests/pwa-update.test.tsx` covers explicit update acceptance, postponement, connection/session guards, and update-error feedback. These mocks do not validate browser service-worker lifecycle behavior.
 
 The protocol simulator is a controlled test double, not OBS. Passing tests do not establish real transition timing, scene-collection behavior, or browser network compatibility. Record browser/OBS observations separately. For documentation-only changes, verify claims against code and check Markdown links; application tests need rerunning only when executable inputs change.
 
@@ -45,6 +48,18 @@ Use an OBS instance and reachable WebSocket address supplied for testing. Record
 9. Verify both monitors default to No Preview, save each monitor’s No Preview/OBS Preview choice independently, reload to confirm persistence, and check hover/focus overlay fading with its indicator, fade-out without a delay, the full-height settings button flush with the right edge, the live scene name at the top center, and the disabled Remote Preview entry. Observe screenshot smoothness, loading/error fallback, hidden-tab pause, and unchanged control responsiveness. Check same-scene Studio edits and transitions against actual Program output, accounting for the scene-screenshot limitation.
 10. With enough scenes to show a page scrollbar, open/close dropdowns, change scene/transition/duration, toggle previews, and trigger validation/errors. Confirm the page, monitor area, and control positions stay stable, temporary synchronization does not dim scenes or controls or spin the refresh icon, and actions remain blocked while busy; the hover overlay may fade without changing geometry.
 11. Inspect the desktop layout, keyboard navigation, dialogs/focus, long scene names, empty lists, and visible error feedback in the actual browser.
+
+## PWA acceptance checklist
+
+Use `bun run build` and `bun run preview` with the trusted local certificate, or a production HTTPS origin. `bun run dev` deliberately does not install a worker. The build should emit `manifest.webmanifest`, `sw.js`, a Workbox runtime, and the regular/maskable/Apple PNG icons. Regenerate committed icons after favicon changes with `bun run generate:icons` (uses the Sharp development dependency; generated PNGs are committed and normal builds do not regenerate them).
+
+1. Inspect the manifest and service-worker registration in browser developer tools. Install from the browser menu; confirm the icon, standalone window, root startup, and route navigation. Record browser/version, OS, origin, and date.
+2. Load once online and allow the worker to install. Close/reopen, then make the app server unavailable and open/reload `/` and `/studio`. Confirm the shell loads and starts disconnected, with no stale scenes or implied offline control. Verify a new connection fails honestly when OBS is also unreachable; app-server reachability and OBS reachability are separate.
+3. Publish a second build with a visible change at the same origin, then reopen a window to trigger an update check. Confirm the release waits for **Reload to update**, **Later** keeps the current page, and connecting/connected states disable reload. Disconnect all windows, accept, and verify the new build loads. Repeat with multiple app windows and check activation after all windows close. Inspect cache cleanup after activation.
+4. Verify the installed app can connect over the intended network and OBS address scheme, including browser permission prompts and WS/WSS restrictions. Interrupt OBS connectivity and confirm disconnected state and reconnect behavior. Cached assets must not hide an OBS connection failure.
+5. Run `bun run deploy:check`. Use `bun run preview:worker` to confirm JavaScript for `sw.js`, the manifest media type for `manifest.webmanifest`, navigation fallback for `/studio` and `/studio/`, `no-cache` on entry files/routes, and immutable caching for fingerprinted `/assets/*`. Vite preview does not apply `_headers`. Repeat against the deployed origin. Exercise clients still loading the previous release during rollout; the current deploy scripts upload only the current `dist/` and do not retain previous fingerprinted files.
+
+Automated tests cover the update UI, and the production build validates service-worker generation. They do not prove installation, offline startup, multi-window activation, or deployment/network compatibility; record that evidence in [milestones](milestones.md) only after exercising it.
 
 ## Documentation completion
 

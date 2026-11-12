@@ -4,7 +4,7 @@ This file describes current implementation. Future capabilities and their status
 
 ## Application boundaries
 
-The app is a browser-only SPA. It maintains one active OBS controller session at a time, using WebSocket v5, with RPC version 1 and the JSON build of `obs-websocket-js`. There is no application backend, account system, proxy, service worker, or external video transport. OBS scene previews use repeated WebSocket screenshots.
+The app is a browser-only SPA. It maintains one active OBS controller session at a time, using WebSocket v5, with RPC version 1 and the JSON build of `obs-websocket-js`. There is no application backend, account system, proxy, or external video transport. A production-only service worker caches the application shell. OBS scene previews use repeated WebSocket screenshots.
 
 | Boundary | Responsibility |
 | --- | --- |
@@ -26,6 +26,7 @@ The app is a browser-only SPA. It maintains one active OBS controller session at
 | `src/pages/studio.tsx` | Studio Mode gate, current scenes, Preview selection, and transition controls. |
 | `src/components/error-notice.tsx` | Dismissible fixed-position error feedback that does not push page or dialog content. |
 | `src/App.tsx` | Shared shell, Exit, connection status, manual refresh, global errors, and route definitions. |
+| `src/components/pwa-update.tsx` | Service-worker registration and explicit application update prompt, mounted alongside the app inside the provider. |
 | `src/components/ui/` | Generated shadcn/ui primitives using the configured preset. `components.json` configures future additions. |
 | `src/index.css` | Tailwind/shadcn imports, theme tokens, dark-mode variant, and shared base integration. |
 
@@ -36,6 +37,24 @@ Routes use React Router's `BrowserRouter`: `/` manages connections and `/studio`
 `vite.config.ts` loads `.cert/key.pem` and `.cert/cert.pem` relative to the config file when running a server outside test mode. Development and Vite preview use this local TLS configuration; tests and production builds do not read or require the certificate files. `/.cert/` is ignored by Git.
 
 The configured `server.allowedHosts` is `[".d.rodr.dev"]`, inherited by preview. This permits `d.rodr.dev` and its subdomains in Vite’s hostname matching. Vite skips that check under HTTPS, so the allowlist is configuration, not HTTPS host enforcement. The supplied certificate covers `studioctrl.d.rodr.dev`; DNS resolution and certificate trust are configured on the development machine. See [README](../README.md) for local setup and [Vite server options](https://vite.dev/config/server-options.html#server-allowedhosts) for hostname matching behavior.
+
+## PWA and application updates
+
+`vite-plugin-pwa` generates the root-scoped manifest and Workbox service worker during production builds. The manifest uses standalone display, starts at `/`, and supplies PNG icons at 192/512 pixels, a separate maskable icon, and an Apple touch icon. The icons derive from the existing Cast favicon; `scripts/generate-pwa-icons.ts` regenerates them using Sharp (`bun run generate:icons`). Development service workers are disabled; use a production build and preview for PWA validation.
+
+Workbox precaches built JS, CSS, HTML, bundled fonts, and icons. Navigation fallback serves the cached shell only for `/` and `/studio` (including its trailing slash). There are no runtime caching rules for external resources, OBS connections, credentials, screenshots, or OBS state. Profiles and preferences remain in localStorage under their existing contracts. Opening a cached shell starts disconnected and requires a new live OBS connection; shell availability does not establish OBS reachability.
+
+Updates use `registerType: "prompt"`, with no automatic skip-waiting or client claiming. `PwaUpdate` offers **Reload to update** and **Later** when a release is waiting. Reload is disabled while this window is connecting or connected, and errors remain in the update notice. Updates may reload other open app windows, so the notice instructs the operator to disconnect OBS in each window before accepting. Closing all app windows can also allow a waiting worker to activate normally. Registration checks for updates when the app opens; there is no periodic update polling.
+
+Host the built app at the origin root over trusted HTTPS with SPA rewrites for client routes. Serve `sw.js`, `index.html`, and `manifest.webmanifest` with revalidation (`Cache-Control: no-cache`); fingerprinted assets can use long-lived immutable caching. The service worker must be served as JavaScript, never rewritten to HTML. A valid secure app origin does not bypass browser WebSocket mixed-content or local-network restrictions; the intended OBS endpoint must be tested separately.
+
+## Cloudflare Workers hosting
+
+`wrangler.jsonc` configures an assets-only Worker named `studioctrl` with `assets.directory: "./dist"` and `not_found_handling: "single-page-application"`. Vite still owns the client build; there is no Worker entry point, Cloudflare Vite plugin, asset binding, or server runtime logic. The existing browser-to-OBS connection remains direct. Account selection and authentication belong to Wrangler/CI, not the committed application config. Custom domains are not configured in the repository.
+
+`public/_headers` is copied to the build output and interpreted by [Workers Static Assets](https://developers.cloudflare.com/workers/static-assets/headers/). `/`, `/index.html`, `/studio`, `/studio/`, `/sw.js`, and `/manifest.webmanifest` receive `Cache-Control: no-cache`; fingerprinted `/assets/*` receive `public, max-age=31536000, immutable`. Other assets use Cloudflare’s defaults. `_headers` is hosting metadata and is not part of the service-worker precache. Vite preview does not interpret these hosting rules; use Wrangler to check them.
+
+`deploy` builds then uploads with Wrangler; `deploy:check` builds then runs a local deployment dry run. `preview:worker` builds and starts Wrangler locally without the mkcert configuration. No script automatically deploys on build. Each deployment uploads the current `dist/`; the repository does not implement retention of previous fingerprinted files. Verify a two-release rollout with open windows and cached clients before production acceptance, including clients still loading an older release.
 
 ## UI theme and density
 

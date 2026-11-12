@@ -25,3 +25,10 @@ dist-ssr
 
 # Local HTTPS certificate and private key
 /.cert/
+
+# Local Cloudflare state and environment values
+/.wrangler/
+.dev.vars
+.dev.vars.*
+.env
+.env.*
