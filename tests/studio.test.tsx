@@ -6,6 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { Studio } from "../src/pages/studio";
 import { useStudio } from "../src/context";
+import { monitorSettingsKey } from "../src/lib/monitor-settings";
 import { StudioClient } from "../src/lib/obs";
 
 vi.mock("../src/context", () => ({ useStudio: vi.fn() }));
@@ -27,6 +28,7 @@ const app = () => (
   </MemoryRouter>
 );
 beforeEach(() => {
+  localStorage.clear();
   vi.mocked(useStudio).mockReturnValue({ client, ...state });
   HTMLElement.prototype.scrollIntoView = vi.fn();
 });
@@ -50,6 +52,7 @@ it("selects a transition without taking Program, then triggers the selected tran
   expect(
     await screen.findByRole("menuitemradio", { name: "Fade" }),
   ).toHaveAttribute("aria-checked", "true");
+  expect(document.body).not.toHaveAttribute("data-scroll-locked");
   await user.click(screen.getByRole("menuitemradio", { name: "Cut" }));
   expect(select).toHaveBeenCalledExactlyOnceWith("Cut");
   expect(transition).not.toHaveBeenCalled();
@@ -59,7 +62,12 @@ it("selects a transition without taking Program, then triggers the selected tran
     currentTransition: "Cut",
   });
   rerender(app());
-  await user.click(screen.getByRole("button", { name: "Transition with Cut" }));
+  expect(
+    screen.getByRole("button", { name: "Select transition" }),
+  ).toHaveTextContent("Cut");
+  await user.click(
+    screen.getByRole("button", { name: "Transition", exact: true }),
+  );
   expect(transition).toHaveBeenCalledExactlyOnceWith("Cut");
 });
 it("selects scenes for Preview and shows independent Preview and Program indicators", async () => {
@@ -89,13 +97,115 @@ it("selects scenes for Preview and shows independent Preview and Program indicat
 it("blocks scene selection and both transition actions while busy", () => {
   vi.mocked(useStudio).mockReturnValue({ client, ...state, busy: true });
   render(app());
-  expect(
-    screen.getByRole("button", { name: "Transition with Fade" }),
-  ).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Transition" })).toHaveAttribute(
+    "aria-disabled",
+    "true",
+  );
   expect(
     screen.getByRole("button", { name: "Select transition" }),
-  ).toBeDisabled();
+  ).toHaveAttribute("aria-disabled", "true");
   within(screen.getByRole("region", { name: "Scenes" }))
     .getAllByRole("button")
-    .forEach((button) => expect(button).toBeDisabled());
+    .forEach((button) =>
+      expect(button).toHaveAttribute("aria-disabled", "true"),
+    );
+});
+
+it("toggles both previews together and stays synchronized with individual settings", async () => {
+  const user = userEvent.setup();
+  const { unmount } = render(app());
+  await user.click(screen.getByRole("button", { name: "Show Previews" }));
+  expect(screen.getByRole("button", { name: "Hide Previews" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  for (const kind of ["preview", "program"] as const) {
+    expect(localStorage.getItem(monitorSettingsKey("default", kind))).toBe(
+      "obs",
+    );
+  }
+  screen.getByRole("button", { name: "Program settings" }).focus();
+  await user.keyboard("{ArrowDown}");
+  expect(
+    screen.getByRole("menuitemradio", { name: "OBS Preview" }),
+  ).toHaveAttribute("aria-checked", "true");
+  await user.click(screen.getByRole("menuitemradio", { name: "No Preview" }));
+  expect(screen.getByRole("button", { name: "Show Previews" })).toHaveAttribute(
+    "aria-pressed",
+    "false",
+  );
+  expect(localStorage.getItem(monitorSettingsKey("default", "preview"))).toBe(
+    "obs",
+  );
+  expect(localStorage.getItem(monitorSettingsKey("default", "program"))).toBe(
+    "none",
+  );
+  await user.click(screen.getByRole("button", { name: "Show Previews" }));
+  unmount();
+  render(app());
+  await user.click(screen.getByRole("button", { name: "Hide Previews" }));
+  for (const kind of ["preview", "program"] as const) {
+    expect(localStorage.getItem(monitorSettingsKey("default", kind))).toBe(
+      "none",
+    );
+  }
+});
+
+it("applies valid duration edits on blur or Enter and refreshes from OBS", async () => {
+  const user = userEvent.setup();
+  const save = vi
+    .spyOn(client, "setTransitionDuration")
+    .mockResolvedValue(undefined);
+  const { rerender } = render(app());
+  const input = screen.getByRole("spinbutton", {
+    name: "Transition duration (milliseconds)",
+  });
+  expect(input).toHaveValue(300);
+  await user.clear(input);
+  await user.type(input, "750");
+  await user.keyboard("{Enter}");
+  expect(save).toHaveBeenCalledExactlyOnceWith(750);
+  vi.mocked(useStudio).mockReturnValue({ client, ...state, duration: 1200 });
+  rerender(app());
+  expect(screen.getByRole("spinbutton")).toHaveValue(1200);
+  expect(screen.getByRole("spinbutton")).toBe(input);
+  await user.clear(screen.getByRole("spinbutton"));
+  await user.type(screen.getByRole("spinbutton"), "49");
+  await user.tab();
+  expect(save).toHaveBeenCalledOnce();
+  expect(screen.getByRole("alert")).toHaveTextContent("50–20,000 ms");
+});
+it("disables the duration input for fixed transitions", () => {
+  vi.mocked(useStudio).mockReturnValue({ client, ...state, duration: null });
+  render(app());
+  expect(
+    screen.getByRole("spinbutton", {
+      name: "Transition duration (milliseconds)",
+    }),
+  ).toBeDisabled();
+});
+
+it("keeps controls mounted and visually enabled during background refresh while blocking actions", async () => {
+  const user = userEvent.setup();
+  const select = vi.spyOn(client, "selectScene").mockResolvedValue(undefined);
+  const take = vi.spyOn(client, "transition").mockResolvedValue(undefined);
+  const { rerender } = render(app());
+  const transition = screen.getByRole("button", { name: "Transition" });
+  const scene = screen.getByRole("button", { name: "Camera Preview" });
+  vi.mocked(useStudio).mockReturnValue({ client, ...state, syncing: true });
+  rerender(app());
+  expect(screen.getByRole("button", { name: "Transition" })).toBe(transition);
+  expect(screen.getByRole("button", { name: "Camera Preview" })).toBe(scene);
+  expect(transition).not.toBeDisabled();
+  expect(scene).not.toBeDisabled();
+  expect(transition).toHaveAttribute("aria-disabled", "true");
+  expect(scene).toHaveAttribute("aria-disabled", "true");
+  expect(screen.getByRole("spinbutton")).toHaveAttribute("readonly");
+  await user.click(transition);
+  await user.click(scene);
+  expect(select).not.toHaveBeenCalled();
+  expect(take).not.toHaveBeenCalled();
+  screen.getByRole("button", { name: "Select transition" }).focus();
+  await user.keyboard("{ArrowDown}");
+  expect(screen.queryByRole("menu")).not.toBeInTheDocument();
 });

@@ -16,15 +16,17 @@ export function SceneButton({
   return (
     <button
       type="button"
-      disabled={disabled}
-      onClick={onSelect}
+      aria-disabled={disabled}
+      onClick={() => {
+        if (!disabled) onSelect();
+      }}
       aria-pressed={isPreview}
       aria-label={[name, isPreview && "Preview", isProgram && "Program"]
         .filter(Boolean)
         .join(" ")}
       title={name}
       className={cn(
-        "relative aspect-square w-full min-w-0 cursor-pointer overflow-hidden border-2 bg-card text-card-foreground transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-default disabled:opacity-50",
+        "relative aspect-square w-full min-w-0 cursor-pointer overflow-hidden border-2 bg-card text-card-foreground transition-none hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring aria-disabled:cursor-default",
         isProgram
           ? "border-program"
           : isPreview

@@ -9,6 +9,7 @@ export default defineConfig(({ command, mode }) => ({
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
   server: {
     allowedHosts: [".d.rodr.dev"],
+    host: '0.0.0.0',
     https:
       command === "serve" && mode !== "test"
         ? {

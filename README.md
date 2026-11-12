@@ -23,6 +23,7 @@ Vite serves HTTPS using `.cert/cert.pem` and `.cert/key.pem`. The `.cert/` direc
 - [Agent guidance](AGENTS.md): starting point and documentation maintenance requirements for future agents.
 - [Milestones](docs/milestones.md): current implementation, outstanding acceptance, and deferred work.
 - [Architecture](docs/architecture.md): OBS state, commands, synchronization, persistence, and implementation boundaries.
+- [Preview research](docs/preview-research.md): OBS Blade’s screenshot approach and Program-output limitations.
 - [Development](docs/development.md): tooling, automated checks, and live OBS acceptance checklist.
 
 ## Validation
@@ -32,4 +33,6 @@ bun run test
 bun run build
 ```
 
-Tests use a simulated OBS WebSocket server and jsdom. See [development](docs/development.md) for coverage and verification limits; live OBS validation remains outstanding.
+Monitor settings offer No Preview or OBS Preview independently for Preview and Program, defaulting to No Preview and remembering each browser-local choice; Remote Preview is reserved for later. OBS Preview uses low-frame-rate scene screenshots, with the scene name as fallback.
+
+Tests use a simulated OBS WebSocket server and jsdom. See [development](docs/development.md) for coverage and verification limits; full browser/OBS acceptance remains outstanding.

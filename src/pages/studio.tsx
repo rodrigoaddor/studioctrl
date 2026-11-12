@@ -53,7 +53,7 @@ export function Studio() {
             className="mb-6 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-4 max-[900px]:grid-cols-2 max-[720px]:gap-3"
           >
             <SceneMonitor kind="preview" sceneName={preview} />
-            <div className="max-[900px]:col-span-2 max-[900px]:row-start-2">
+            <div className="self-stretch max-[900px]:col-span-2 max-[900px]:row-start-2">
               <TransitionControl />
             </div>
             <div className="min-w-0 max-[900px]:col-start-2 max-[900px]:row-start-1">

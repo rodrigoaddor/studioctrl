@@ -82,3 +82,21 @@ it("keeps the brand link in the studio while connected", async () => {
   await userEvent.setup().click(brand);
   expect(screen.getByLabelText("Current route")).toHaveTextContent("/studio");
 });
+
+it("keeps the refresh icon mounted without spinning or dimming during automatic synchronization", async () => {
+  const refresh = vi.spyOn(client, "refresh").mockResolvedValue(undefined);
+  const { rerender } = render(app("/studio"));
+  const button = screen.getByRole("button", { name: "Refresh OBS state" });
+  const icon = button.querySelector("svg");
+  vi.mocked(useStudio).mockReturnValue({ client, ...connected, syncing: true });
+  rerender(app("/studio"));
+  expect(screen.getByRole("button", { name: "Refresh OBS state" })).toBe(
+    button,
+  );
+  expect(button.querySelector("svg")).toBe(icon);
+  expect(icon).not.toHaveClass("animate-spin");
+  expect(button).not.toBeDisabled();
+  expect(button).toHaveAttribute("aria-disabled", "true");
+  await userEvent.setup().click(button);
+  expect(refresh).not.toHaveBeenCalled();
+});

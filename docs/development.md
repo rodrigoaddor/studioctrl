@@ -20,8 +20,12 @@ For implementation changes, run `bun run test` and `bun run build`. Add focused 
 - `tests/reachability.test.ts` covers OBS Hello validation, unauthenticated probing, network failures, timeout, and cancellation using a controlled WebSocket double.
 - `tests/connection-status.test.tsx` covers badge rechecks, unmount cleanup, and discarded results after URL edits.
 - `tests/connections.test.tsx` uses Testing Library with jsdom for profile management, password forms, and independent per-profile reachability badges. Its dialog methods are shimmed; it does not prove native dialog focus or browser layout behavior.
-- `tests/studio.test.tsx` covers dropdown selection versus explicit transition triggering, scene selection, independent Preview/Program indicators, and busy-state guards.
+- `tests/studio.test.tsx` covers dropdown selection versus explicit transition triggering, scene selection, independent Preview/Program indicators, busy-state guards, and the combined preview toggle with independent-menu synchronization and persisted settings.
 - `tests/navigation.test.tsx` covers the single-session navigation contract, Exit, and connection-route redirects.
+- `tests/screenshot-preview.test.ts` covers frame pacing, serialization, hidden tabs, backoff, and cancelled/stalled captures.
+- `tests/screenshot-rendering.test.ts` covers decode-before-draw and obsolete frame rejection with controlled image/canvas doubles.
+- `tests/obs-preview-hook.test.tsx` covers source/collection/mode lifecycle cleanup.
+- `tests/scene-monitor.test.tsx` covers independent persisted mode settings, scene-name fallback, and the disabled Remote Preview option.
 - `tests/profiles.test.ts` covers password persistence, malformed storage, and URL validation.
 
 The protocol simulator is a controlled test double, not OBS. Passing tests do not establish real transition timing, scene-collection behavior, or browser network compatibility. Record browser/OBS observations separately. For documentation-only changes, verify claims against code and check Markdown links; application tests need rerunning only when executable inputs change.
@@ -34,11 +38,13 @@ Use an OBS instance and reachable WebSocket address supplied for testing. Record
 2. Connect with valid credentials, then verify clear feedback for invalid credentials and an unavailable endpoint. Confirm cancellation leaves no usable stale controls. While connected, confirm the brand link and Browser Back keep the active studio visible; **Exit** must disconnect and return to saved connections.
 3. Start with Studio Mode disabled. Confirm the gate appears and connecting leaves OBS unchanged; enable it using the explicit button.
 4. Compare scene order against the OBS Scenes dock at connection time and after reordering in OBS. Select scenes from the square button grid and confirm only Preview changes. Verify centered names, bottom state labels, and distinct Preview/Program borders. Check Program/Preview labels, including the case where both select the same scene.
-5. Select Cut and Fade through the split control dropdown, verifying that choosing an option changes the selected transition without taking Program. Trigger each using the main button. Confirm the selected OBS transition and resulting Program scene, using OBS's actual preview swap behavior. Test a stinger if available and confirm controls remain locked through playback.
+5. Select Cut and Fade through the separate transition type dropdown, verifying that choosing an option changes the selected transition without taking Program. Trigger each using the centered Transition button. Verify the type selector and duration input align with the bottom of the monitors on desktop. Edit a non-fixed transition’s duration, commit with Enter or blur, and confirm OBS updates without taking Program. Verify external OBS duration changes appear in the field and fixed transitions disable editing. Confirm the selected OBS transition and resulting Program scene, using OBS's actual preview swap behavior. Test a stinger if available and confirm controls remain locked through playback.
 6. Change scenes, names, Studio Mode, transition settings, and scene collection in OBS. Confirm the app catches up. Add a transition and verify the appbar refresh button reloads the list.
 7. Exercise rapid changes and interrupted transitions. Record any stale selection or stuck busy state, including behavior around the 30-second fallback.
 8. Stop OBS or interrupt the network, then reconnect through a saved profile. Verify old scene state clears and the new session is accurate.
-9. Inspect the desktop layout, keyboard navigation, dialogs/focus, long scene names, empty lists, and visible error feedback in the actual browser.
+9. Verify both monitors default to No Preview, save each monitor’s No Preview/OBS Preview choice independently, reload to confirm persistence, and check hover/focus overlay fading with its indicator, fade-out without a delay, the full-height settings button flush with the right edge, the live scene name at the top center, and the disabled Remote Preview entry. Observe screenshot smoothness, loading/error fallback, hidden-tab pause, and unchanged control responsiveness. Check same-scene Studio edits and transitions against actual Program output, accounting for the scene-screenshot limitation.
+10. With enough scenes to show a page scrollbar, open/close dropdowns, change scene/transition/duration, toggle previews, and trigger validation/errors. Confirm the page, monitor area, and control positions stay stable, temporary synchronization does not dim scenes or controls or spin the refresh icon, and actions remain blocked while busy; the hover overlay may fade without changing geometry.
+11. Inspect the desktop layout, keyboard navigation, dialogs/focus, long scene names, empty lists, and visible error feedback in the actual browser.
 
 ## Documentation completion
 

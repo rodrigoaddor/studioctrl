@@ -1,10 +1,14 @@
 import OBSWebSocket from "obs-websocket-js/json";
 import type { Profile } from "./profiles";
 
+export const MIN_TRANSITION_DURATION = 50;
+export const MAX_TRANSITION_DURATION = 20_000;
+
 export interface StudioState {
   status: "disconnected" | "connecting" | "connected";
   profile: Profile | null;
   studio: boolean;
+  previewEpoch: number;
   scenes: string[];
   preview: string | null;
   program: string | null;
@@ -19,6 +23,7 @@ const initial: StudioState = {
   status: "disconnected",
   profile: null,
   studio: false,
+  previewEpoch: 0,
   scenes: [],
   preview: null,
   program: null,
@@ -36,6 +41,8 @@ export class StudioClient {
   private revision = 0;
   private refreshPromise: Promise<void> | null = null;
   private refreshAgain = false;
+  private screenshotAbort = new AbortController();
+  private screenshotRequests = new Map<string, Promise<string>>();
   private transitionTimer: ReturnType<typeof setTimeout> | undefined;
   getSnapshot = () => this.state;
   subscribe = (listener: () => void) => {
@@ -60,9 +67,12 @@ export class StudioClient {
   disconnect = () => {
     const old = this.obs;
     this.obs = null;
+    this.screenshotAbort.abort();
+    this.screenshotAbort = new AbortController();
+    this.screenshotRequests.clear();
     this.revision++;
     clearTimeout(this.transitionTimer);
-    this.update({ ...initial });
+    this.update({ ...initial, previewEpoch: this.state.previewEpoch + 1 });
     if (old) {
       old.removeAllListeners();
       void old.disconnect().catch(() => {});
@@ -80,10 +90,13 @@ export class StudioClient {
     obs.on("ConnectionClosed", (error) => {
       if (this.obs !== obs) return;
       this.obs = null;
+      this.screenshotAbort.abort();
+      this.screenshotRequests.clear();
       this.revision++;
       clearTimeout(this.transitionTimer);
       this.update({
         ...initial,
+        previewEpoch: this.state.previewEpoch + 1,
         error:
           error.code === 4009
             ? "Authentication failed. Check the OBS WebSocket password."
@@ -99,13 +112,17 @@ export class StudioClient {
     obs.on("SceneListChanged", refresh);
     obs.on("SceneNameChanged", refresh);
     obs.on("CurrentSceneCollectionChanging", () => {
-      if (this.obs === obs)
-        this.update({
-          syncing: true,
-          scenes: [],
-          preview: null,
-          program: null,
-        });
+      if (this.obs !== obs) return;
+      this.screenshotAbort.abort();
+      this.screenshotAbort = new AbortController();
+      this.screenshotRequests.clear();
+      this.update({
+        syncing: true,
+        scenes: [],
+        preview: null,
+        program: null,
+        previewEpoch: this.state.previewEpoch + 1,
+      });
     });
     obs.on("CurrentSceneCollectionChanged", refresh);
     obs.on("CurrentSceneTransitionChanged", refresh);
@@ -180,6 +197,60 @@ export class StudioClient {
       }
     }
   }
+  getScreenshot = (sceneName: string): Promise<string> => {
+    const obs = this.obs;
+    if (
+      !obs ||
+      this.state.status !== "connected" ||
+      !this.state.studio ||
+      !this.state.scenes.includes(sceneName)
+    ) {
+      return Promise.reject(new Error("Preview source unavailable"));
+    }
+    const pending = this.screenshotRequests.get(sceneName);
+    if (pending) return pending;
+    if (this.screenshotRequests.size >= 2)
+      return Promise.reject(new Error("Preview requests are busy"));
+    const signal = this.screenshotAbort.signal;
+    const response = new Promise<{ imageData: string }>((resolve, reject) => {
+      const cancel = () => {
+        signal.removeEventListener("abort", cancel);
+        reject(new Error("Preview session changed"));
+      };
+      signal.addEventListener("abort", cancel, { once: true });
+      void obs
+        .call("GetSourceScreenshot", {
+          sourceName: sceneName,
+          imageFormat: "jpg",
+          imageWidth: 640,
+          imageCompressionQuality: 65,
+        })
+        .then(
+          (result) => {
+            signal.removeEventListener("abort", cancel);
+            resolve(result);
+          },
+          (error) => {
+            signal.removeEventListener("abort", cancel);
+            reject(error);
+          },
+        );
+    });
+    const request = response
+      .then(({ imageData }) => {
+        if (this.obs !== obs || !this.state.scenes.includes(sceneName))
+          throw new Error("Preview session changed");
+        if (!/^data:image\/(?:jpeg|jpg);base64,/.test(imageData))
+          throw new Error("Invalid preview image");
+        return imageData;
+      })
+      .finally(() => {
+        if (this.screenshotRequests.get(sceneName) === request)
+          this.screenshotRequests.delete(sceneName);
+      });
+    this.screenshotRequests.set(sceneName, request);
+    return request;
+  };
   private async command(
     action: (obs: OBSWebSocket) => Promise<unknown>,
     studioRequired = true,
@@ -214,6 +285,23 @@ export class StudioClient {
     this.command((obs) =>
       obs.call("SetCurrentSceneTransition", { transitionName }),
     );
+  setTransitionDuration = (transitionDuration: number) => {
+    if (this.state.duration === null) return Promise.resolve();
+    return this.command(async (obs) => {
+      if (
+        !Number.isInteger(transitionDuration) ||
+        transitionDuration < MIN_TRANSITION_DURATION ||
+        transitionDuration > MAX_TRANSITION_DURATION
+      ) {
+        throw new Error(
+          "Transition duration must be an integer from 50 to 20,000 ms.",
+        );
+      }
+      await obs.call("SetCurrentSceneTransitionDuration", {
+        transitionDuration,
+      });
+    });
+  };
   transition = async (transitionName: string) => {
     const obs = this.obs;
     if (

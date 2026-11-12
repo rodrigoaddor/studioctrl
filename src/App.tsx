@@ -1,5 +1,6 @@
-import { Cast, ChevronLeft, Circle, RefreshCw, X } from "lucide-react";
+import { Cast, ChevronLeft, Circle, RefreshCw } from "lucide-react";
 import { Link, Navigate, Route, Routes, useNavigate } from "react-router-dom";
+import { ErrorNotice } from "./components/error-notice";
 import { Button } from "./components/ui/button";
 import { useStudio } from "./context";
 import { Connections } from "./pages/connections";
@@ -43,31 +44,18 @@ export default function App() {
                 size="icon"
                 aria-label="Refresh OBS state"
                 title="Refresh OBS state"
-                disabled={syncing}
-                onClick={() => void client.refresh()}
+                aria-disabled={syncing}
+                onClick={() => {
+                  if (!syncing) void client.refresh();
+                }}
               >
-                <RefreshCw className={syncing ? "animate-spin" : ""} />
+                <RefreshCw />
               </Button>
             </>
           )}
         </div>
       </header>
-      {error && (
-        <div
-          role="alert"
-          className="mx-auto mt-4 flex w-[calc(100%-3rem)] max-w-[1200px] items-center justify-between max-[720px]:w-[calc(100%-2rem)] border border-[color-mix(in_oklch,var(--destructive)_40%,var(--border))] bg-[color-mix(in_oklch,var(--destructive)_8%,var(--background))] px-3 py-2.5 text-xs text-destructive"
-        >
-          <span>{error}</span>
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Dismiss error"
-            onClick={client.clearError}
-          >
-            <X />
-          </Button>
-        </div>
-      )}
+      {error && <ErrorNotice message={error} onDismiss={client.clearError} />}
       <Routes>
         <Route
           path="/"

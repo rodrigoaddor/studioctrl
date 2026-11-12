@@ -11,9 +11,13 @@ let studio: boolean;
 let preview: string;
 let program: string;
 let transition: string;
+let transitionDuration: number;
+let transitionFixed: boolean;
 let rejectTrigger: boolean;
 let deferVideoEnd: boolean;
 let requests: string[];
+let screenshotParams: unknown;
+let holdScreenshots: boolean;
 let sceneList: { sceneName: string; sceneIndex: number }[];
 let url: string;
 function event(eventType: string, eventData = {}) {
@@ -26,9 +30,13 @@ beforeEach(async () => {
   preview = "Camera";
   program = "Starting";
   transition = "Fade";
+  transitionDuration = 300;
+  transitionFixed = false;
   rejectTrigger = false;
   deferVideoEnd = false;
   requests = [];
+  screenshotParams = undefined;
+  holdScreenshots = false;
   // OBS sends its Scenes dock bottom-to-top, with the top scene at the highest index.
   sceneList = ["Slides", "Camera", "Starting"].map((sceneName, sceneIndex) => ({
     sceneName,
@@ -69,6 +77,11 @@ beforeEach(async () => {
       let responseData: object = {};
       let result = true;
       switch (d.requestType) {
+        case "GetSourceScreenshot":
+          screenshotParams = d.requestData;
+          if (holdScreenshots) return;
+          responseData = { imageData: "data:image/jpeg;base64,frame" };
+          break;
         case "GetStudioModeEnabled":
           responseData = { studioModeEnabled: studio };
           break;
@@ -90,8 +103,8 @@ beforeEach(async () => {
         case "GetCurrentSceneTransition":
           responseData = {
             transitionName: transition,
-            transitionFixed: false,
-            transitionDuration: 300,
+            transitionFixed,
+            transitionDuration,
           };
           break;
         case "GetCurrentPreviewScene":
@@ -104,6 +117,12 @@ beforeEach(async () => {
         case "SetCurrentPreviewScene":
           preview = d.requestData.sceneName;
           event("CurrentPreviewSceneChanged", { sceneName: preview });
+          break;
+        case "SetCurrentSceneTransitionDuration":
+          transitionDuration = d.requestData.transitionDuration;
+          event("CurrentSceneTransitionDurationChanged", {
+            transitionDuration,
+          });
           break;
         case "SetCurrentSceneTransition":
           transition = d.requestData.transitionName;
@@ -276,4 +295,86 @@ it("follows reordered OBS scenes after SceneListChanged", async () => {
   await expect
     .poll(() => client.getSnapshot().scenes)
     .toEqual(["Slides", "Starting", "Camera"]);
+});
+
+it("uses bounded JPEG screenshots without locking controls and shares concurrent reads", async () => {
+  await connect();
+  await client.enableStudio();
+  const first = client.getScreenshot("Camera");
+  const second = client.getScreenshot("Camera");
+  expect(first).toBe(second);
+  expect(client.getSnapshot().busy).toBe(false);
+  expect(await first).toBe("data:image/jpeg;base64,frame");
+  expect(screenshotParams).toEqual({
+    sourceName: "Camera",
+    imageFormat: "jpg",
+    imageWidth: 640,
+    imageCompressionQuality: 65,
+  });
+  expect(requests.filter((r) => r === "GetSourceScreenshot")).toHaveLength(1);
+  expect(client.getSnapshot().error).toBeNull();
+});
+it("caps in-flight screenshot requests and releases them on disconnect", async () => {
+  await connect();
+  await client.enableStudio();
+  holdScreenshots = true;
+  const first = client.getScreenshot("Camera");
+  const second = client.getScreenshot("Starting");
+  const settled = Promise.allSettled([first, second]);
+  await expect(client.getScreenshot("Slides")).rejects.toThrow("busy");
+  client.disconnect();
+  await settled;
+  await expect(client.getScreenshot("Camera")).rejects.toThrow("unavailable");
+});
+
+it("invalidates pending frames when a collection changes, even if the scene name is reused", async () => {
+  await connect();
+  await client.enableStudio();
+  holdScreenshots = true;
+  const epoch = client.getSnapshot().previewEpoch;
+  const pending = client.getScreenshot("Camera");
+  const rejection = expect(pending).rejects.toThrow("session changed");
+  event("CurrentSceneCollectionChanging");
+  await rejection;
+  expect(client.getSnapshot().previewEpoch).toBe(epoch + 1);
+  expect(client.getSnapshot().preview).toBeNull();
+  holdScreenshots = false;
+  event("CurrentSceneCollectionChanged");
+  await expect.poll(() => client.getSnapshot().syncing).toBe(false);
+  expect(await client.getScreenshot("Camera")).toBe(
+    "data:image/jpeg;base64,frame",
+  );
+});
+
+it("changes transition duration without taking Program and follows external duration changes", async () => {
+  await connect();
+  await client.enableStudio();
+  await client.setTransitionDuration(750);
+  expect(client.getSnapshot()).toMatchObject({
+    duration: 750,
+    program: "Starting",
+    preview: "Camera",
+    busy: false,
+  });
+  expect(requests).not.toContain("TriggerStudioModeTransition");
+  transitionDuration = 1200;
+  event("CurrentSceneTransitionDurationChanged", { transitionDuration });
+  await expect.poll(() => client.getSnapshot().duration).toBe(1200);
+});
+it("rejects out-of-range or fractional durations without sending them to OBS", async () => {
+  await connect();
+  await client.enableStudio();
+  for (const value of [49, 20001, 100.5, NaN])
+    await client.setTransitionDuration(value);
+  expect(requests).not.toContain("SetCurrentSceneTransitionDuration");
+  expect(client.getSnapshot()).toMatchObject({ duration: 300, busy: false });
+  expect(client.getSnapshot().error).toContain("50 to 20,000");
+});
+it("leaves fixed-duration transitions unchanged", async () => {
+  transitionFixed = true;
+  await connect();
+  await client.enableStudio();
+  await client.setTransitionDuration(750);
+  expect(client.getSnapshot().duration).toBeNull();
+  expect(requests).not.toContain("SetCurrentSceneTransitionDuration");
 });

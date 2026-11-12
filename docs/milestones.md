@@ -6,13 +6,14 @@ This file owns product scope, decisions, milestone status, and deferred work. Se
 
 - Build for larger screens first. Phone-first layouts are outside the initial target. Keep the interface compact with concise functional copy and no promotional sections or footer.
 - Use a client-rendered React application with Vite, TypeScript, Tailwind CSS, editable shadcn/ui components, and simple React Router routes. SSR is unnecessary for the current scope.
+- Keep control-state changes stable in layout: no press movement or layout-changing loading/error rows. The monitor hover overlay may fade through opacity only.
 - Use Tailwind utilities for application styling; reserve CSS for theme/base integration and styles that utilities cannot reasonably express.
 - Use Bun for dependencies and script execution.
 - Connect directly to the OBS built-in WebSocket server. The operator supplies a reachable address, potentially through a network such as Tailscale.
 - Operate only in Studio Mode. If disabled, offer an explicit enable button; connecting alone must not enable it.
 - Keep one active OBS session at a time. **Exit** disconnects and returns to the connection manager; managing multiple simultaneous sessions is outside scope.
 - Save connection profiles locally. Remembering a password is an explicit option, off by default.
-- The initial controller shows scene names and selections. Video previews, PWA installation, and production hosting/TLS work are deferred. Local development HTTPS uses an ignored mkcert certificate.
+- The controller includes scene selection and configurable OBS screenshot previews. Remote streams, PWA installation, and production hosting/TLS work are deferred. Local development HTTPS uses an ignored mkcert certificate.
 
 ## M1 — Base controller
 
@@ -23,9 +24,9 @@ Delivered scope:
 - Connection page with profile creation, editing, deletion, selection, and connection, plus automatically refreshed per-profile Online/Offline reachability badges.
 - Optional remembered passwords and a connection-time prompt otherwise.
 - Studio Mode gate with an enable button.
-- Separate 16:9 Preview and Program monitor placeholders with centered scene names and top-right indicators on translucent overlay bars, plus scene-tile indicators, including when both select the same scene.
+- Separate 16:9 Preview and Program monitors with OBS screenshot playback or centered scene-name fallback, independent source menus, top-left indicators, and scene-tile indicators.
 - Square scene buttons below both monitors have centered names, bottom Preview/Program labels, and selection-colored borders; scene selection changes Preview only.
-- A split shadcn/ui ButtonGroup between the monitors triggers the currently selected OBS transition. Its dropdown selects other OBS transitions without triggering them; duration and other settings come from OBS.
+- A standalone Transition button is vertically centered between the monitors. A separate bottom-aligned selector changes the OBS transition type without triggering it, and a duration field updates non-fixed transitions in OBS (50–20,000 ms).
 - Event-driven synchronization with OBS, manual refresh in the appbar, busy controls, visible request errors, and disconnect handling.
 - Automated protocol, connection-management UI, and persistence tests; production build verification.
 
@@ -49,16 +50,24 @@ Acceptance: document the tested environment and results, add regression coverage
 
 ## M3 — Preview and Program video
 
-**Status: 16:9 monitor layout and scene-name fallback implemented; video transport, preview toggles, and sequencing deferred.**
+**Status: OBS screenshot playback and independent monitor settings implemented; remote streams and broader browser/output-fidelity validation remain outstanding.**
 
-Candidate browser transports from the initial brief:
+Delivered:
 
-- Repeated OBS source screenshots for a low-frame-rate Preview and Program display, using the current scene and `GetSourceScreenshot`.
-- External stream embedding, initially considering MediaMTX and WebRTC.
+- Each monitor’s translucent overlay contains the top-left Preview/Program indicator, a full-height settings button flush with the right corner, and the centered scene name during live playback. It fades in on hover/focus, fades out without a delay, and stays visible with the dropdown.
+- No Preview shows the centered scene name. OBS Preview displays repeated `GetSourceScreenshot` frames; Remote Preview is disabled and does nothing.
+- A text-only Show Previews / Hide Previews button at the top of the monitor area toggles both monitors together. Mixed/off states enable both on click; when both are enabled, clicking disables both. Individual menus and the combined toggle stay synchronized.
+- Preferences persist independently per saved profile and monitor; both default to No Preview. Explicitly saved OBS Preview selections remain enabled across reloads.
+- Response/decode-paced JPEG capture at width 640, quality 65, capped at 10 FPS per enabled monitor, with bounded current-generation requests, hidden-tab pause, failure backoff, and stale-frame/session cleanup.
+- Read-only live capture verification on 2026-11-12: both monitors received 22 valid JPEG frames in about 2.2 seconds from the supplied local OBS instance, with no capture errors and unchanged Preview/Program selections. This checks capture throughput, not browser rendering smoothness or actual output fidelity.
+- Automated tests cover request sharing/caps, collection invalidation, loop pacing, decode-before-draw, cancellation, preferences, and the disabled remote option.
 
-Before implementation, decide whether to support one transport or selectable providers, how to configure separate Preview/Program feeds, refresh rate and resource budgets, authentication, and failure behavior. A stream must be correctly identified as Preview or Program; an external feed is not automatically both.
+Remaining acceptance:
 
-Acceptance: both panels have clearly identified sources, useful loading/error states, and bounded resource use. Scene selection and transitions remain usable when video is unavailable. Evaluate latency and load with the chosen real transport.
+- Verify visual smoothness, memory/OBS load, and control responsiveness in the actual browser over the intended network. Browser drawing is covered by controlled tests; live browser QA has not been performed.
+- Validate rapid scene/collection changes, non-16:9 sources, long capture stalls, and suspend/resume against real OBS.
+- Named-scene screenshots can differ from Program output during transitions or same-scene Studio edits; use an actual Program-output transport when output-fidelity monitoring is required. See [research](preview-research.md).
+- Implement Remote Preview only after choosing transport/configuration. MediaMTX/WebRTC is a browser candidate; NDI belongs to a future native implementation.
 
 ## M4 — Installable PWA and deployment
 

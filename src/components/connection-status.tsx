@@ -29,7 +29,7 @@ export function ConnectionStatus({ url, name }: { url: string; name: string }) {
       aria-label={`${name}: ${label}`}
       title="OBS WebSocket reachability; authentication is checked when connecting."
       className={cn(
-        "inline-flex shrink-0 items-center gap-1.5 border px-1.5 py-0.5 text-[10px]",
+        "inline-flex h-5 w-20 shrink-0 items-center justify-center gap-1.5 border px-1.5 py-0.5 text-[10px]",
         online === null
           ? "border-border text-muted-foreground"
           : online

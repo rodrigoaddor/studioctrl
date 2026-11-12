@@ -9,6 +9,7 @@ import {
   X,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { ErrorNotice } from "../components/error-notice";
 import { ConnectionStatus } from "../components/connection-status";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -104,12 +105,7 @@ export function Connections() {
         </Button>
       </div>
       {error && !formOpen && (
-        <p
-          role="alert"
-          className="my-3 border border-[color-mix(in_oklch,var(--destructive)_40%,var(--border))] bg-[color-mix(in_oklch,var(--destructive)_8%,var(--background))] px-3 py-2.5 text-xs text-destructive"
-        >
-          {error}
-        </p>
+        <ErrorNotice message={error} onDismiss={() => setError("")} />
       )}
       <div className="grid grid-cols-3 gap-3 max-[1000px]:grid-cols-2 max-[720px]:grid-cols-1">
         {profiles.map((p) => (
@@ -265,12 +261,7 @@ export function Connections() {
               Saved passwords are stored unencrypted in this browser.
             </p>
             {error && (
-              <p
-                role="alert"
-                className="my-3 border border-[color-mix(in_oklch,var(--destructive)_40%,var(--border))] bg-[color-mix(in_oklch,var(--destructive)_8%,var(--background))] px-3 py-2.5 text-xs text-destructive"
-              >
-                {error}
-              </p>
+              <ErrorNotice message={error} onDismiss={() => setError("")} />
             )}
             <div className="mt-5 flex justify-end gap-2">
               <Button
