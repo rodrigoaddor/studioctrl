@@ -159,7 +159,10 @@ export class StudioClient {
         if (this.obs !== obs || revision !== this.revision) continue;
         this.update({
           studio: studio.studioModeEnabled,
-          scenes: scenes.scenes.map((s) => String(s.sceneName)),
+          // OBS returns scenes bottom-to-top; its Scenes dock displays the highest index first.
+          scenes: [...scenes.scenes]
+            .sort((a, b) => Number(b.sceneIndex) - Number(a.sceneIndex))
+            .map((s) => String(s.sceneName)),
           preview: preview?.sceneName ?? null,
           program: scenes.currentProgramSceneName,
           transitions: transitions.transitions.map((t) =>
@@ -207,6 +210,10 @@ export class StudioClient {
     );
   selectScene = (sceneName: string) =>
     this.command((obs) => obs.call("SetCurrentPreviewScene", { sceneName }));
+  selectTransition = (transitionName: string) =>
+    this.command((obs) =>
+      obs.call("SetCurrentSceneTransition", { transitionName }),
+    );
   transition = async (transitionName: string) => {
     const obs = this.obs;
     if (

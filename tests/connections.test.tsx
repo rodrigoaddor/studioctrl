@@ -4,10 +4,16 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
+import { isObsOnline } from "../src/lib/reachability";
+import { saveProfiles } from "../src/lib/profiles";
 import App from "../src/App";
 import { StudioProvider } from "../src/context";
+vi.mock("../src/lib/reachability", () => ({
+  isObsOnline: vi.fn().mockResolvedValue(false),
+}));
 beforeEach(() => {
   localStorage.clear();
+  vi.mocked(isObsOnline).mockReset().mockResolvedValue(false);
   HTMLDialogElement.prototype.showModal = function () {
     this.setAttribute("open", "");
   };
@@ -56,9 +62,7 @@ it("creates, edits, and deletes a connection and asks for a session password", a
   await user.click(
     screen.getByRole("button", { name: "Delete Updated studio" }),
   );
-  expect(
-    screen.getByText("No saved connections"),
-  ).toBeInTheDocument();
+  expect(screen.getByText("No saved connections")).toBeInTheDocument();
 });
 it("defaults remembering passwords to off and supports explicitly opting in", async () => {
   const user = userEvent.setup();
@@ -78,4 +82,38 @@ it("defaults remembering passwords to off and supports explicitly opting in", as
   expect(
     JSON.parse(localStorage.getItem("studioctrl.connections.v1")!)[0].password,
   ).toBe("my-test-password");
+});
+
+it("shows independent reachability badges for saved connections", async () => {
+  saveProfiles([
+    { id: "1", name: "Main", url: "ws://main:4455", rememberPassword: false },
+    {
+      id: "2",
+      name: "Backup",
+      url: "ws://backup:4455",
+      rememberPassword: false,
+    },
+  ]);
+  vi.mocked(isObsOnline).mockImplementation(async (url) =>
+    url.includes("main"),
+  );
+  render(
+    <MemoryRouter>
+      <StudioProvider>
+        <App />
+      </StudioProvider>
+    </MemoryRouter>,
+  );
+  expect(
+    await screen.findByRole("status", { name: "Main: Online" }),
+  ).toBeInTheDocument();
+  expect(
+    await screen.findByRole("status", { name: "Backup: Offline" }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getAllByRole("button", { name: "Connect", exact: true }),
+  ).toHaveLength(2);
+  expect(
+    screen.queryByRole("button", { name: "Exit" }),
+  ).not.toBeInTheDocument();
 });

@@ -14,6 +14,7 @@ let transition: string;
 let rejectTrigger: boolean;
 let deferVideoEnd: boolean;
 let requests: string[];
+let sceneList: { sceneName: string; sceneIndex: number }[];
 let url: string;
 function event(eventType: string, eventData = {}) {
   socket.send(
@@ -28,6 +29,11 @@ beforeEach(async () => {
   rejectTrigger = false;
   deferVideoEnd = false;
   requests = [];
+  // OBS sends its Scenes dock bottom-to-top, with the top scene at the highest index.
+  sceneList = ["Slides", "Camera", "Starting"].map((sceneName, sceneIndex) => ({
+    sceneName,
+    sceneIndex,
+  }));
   server = new WebSocketServer({ port: 0, host: "127.0.0.1" });
   await new Promise<void>((resolve) => server.on("listening", resolve));
   const address = server.address();
@@ -70,9 +76,7 @@ beforeEach(async () => {
           responseData = {
             currentProgramSceneName: program,
             currentPreviewSceneName: studio ? preview : null,
-            scenes: ["Starting", "Camera", "Slides"].map(
-              (sceneName, sceneIndex) => ({ sceneName, sceneIndex }),
-            ),
+            scenes: sceneList,
           };
           break;
         case "GetSceneTransitionList":
@@ -239,4 +243,37 @@ it("keeps controls locked through stinger playback after its cut point", async (
   expect(requests.length).toBe(before);
   event("SceneTransitionVideoEnded");
   await expect.poll(() => client.getSnapshot().busy).toBe(false);
+});
+
+it("changes the selected transition without triggering a scene transition", async () => {
+  await connect();
+  await client.selectTransition("Cut");
+  expect(requests).not.toContain("SetCurrentSceneTransition");
+  await client.enableStudio();
+  await client.selectTransition("Cut");
+  expect(client.getSnapshot()).toMatchObject({
+    currentTransition: "Cut",
+    program: "Starting",
+    preview: "Camera",
+    busy: false,
+  });
+  expect(requests).not.toContain("TriggerStudioModeTransition");
+});
+
+it("matches OBS Scenes dock order on connection", async () => {
+  await connect();
+  expect(client.getSnapshot().scenes).toEqual(["Starting", "Camera", "Slides"]);
+});
+
+it("follows reordered OBS scenes after SceneListChanged", async () => {
+  await connect();
+  sceneList = [
+    { sceneName: "Camera", sceneIndex: 0 },
+    { sceneName: "Starting", sceneIndex: 1 },
+    { sceneName: "Slides", sceneIndex: 2 },
+  ];
+  event("SceneListChanged", { scenes: sceneList });
+  await expect
+    .poll(() => client.getSnapshot().scenes)
+    .toEqual(["Slides", "Starting", "Camera"]);
 });

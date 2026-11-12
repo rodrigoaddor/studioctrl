@@ -4,28 +4,43 @@ This file describes current implementation. Future capabilities and their status
 
 ## Application boundaries
 
-The app is a browser-only SPA. It connects directly to one OBS WebSocket v5 session at a time, with RPC version 1 and the JSON build of `obs-websocket-js`. There is no application backend, account system, proxy, service worker, or video transport.
+The app is a browser-only SPA. It maintains one active OBS controller session at a time, using WebSocket v5, with RPC version 1 and the JSON build of `obs-websocket-js`. There is no application backend, account system, proxy, service worker, or video transport.
 
 | Boundary | Responsibility |
 | --- | --- |
 | `src/lib/obs.ts` | `StudioClient`: WebSocket lifecycle, OBS requests/events, state snapshots, synchronization, command guards, and errors. |
 | `src/context.tsx` | One client per provider; React subscribes through `useSyncExternalStore`. |
+| `src/lib/reachability.ts` | Short-lived, unauthenticated OBS Hello probes with timeout and cancellation. |
+| `src/components/transition-control.tsx` | Selected-transition split ButtonGroup and dropdown; choosing a transition is separate from triggering it. |
+| `src/components/scene-button.tsx` | Square scene tile with centered name, bottom selection labels, and state-driven border colors. |
+| `src/components/scene-monitor.tsx` | Shared 16:9 Preview/Program monitor placeholder and overlay indicator. |
+| `src/components/connection-status.tsx` | Per-profile reachability badge and automatic rechecks while mounted. |
 | `src/lib/profiles.ts` | Profile schema, URL normalization, and browser-local persistence. |
 | `src/pages/connections.tsx` | Profile forms, password prompt, connection selection, and navigation after connection. |
-| `src/pages/studio.tsx` | Studio Mode gate, current scenes, Preview selection, transition controls, and explicit Sync. |
-| `src/App.tsx` | Shared shell, connection status, global errors, and route definitions. |
+| `src/pages/studio.tsx` | Studio Mode gate, current scenes, Preview selection, and transition controls. |
+| `src/App.tsx` | Shared shell, Exit, connection status, manual refresh, global errors, and route definitions. |
 | `src/components/ui/` | Generated shadcn/ui primitives using the configured preset. `components.json` configures future additions. |
-| `src/index.css` | Tailwind theme and application layout/styles, optimized for larger screens. |
+| `src/index.css` | Tailwind/shadcn imports, theme tokens, dark-mode variant, and shared base integration. |
 
 Routes use React Router's `BrowserRouter`: `/` manages connections and `/studio` displays the controller. The studio route returns to connections without an active session. During an active connection, the connections route redirects to the studio and the brand link stays in the studio. The single **Exit** button disconnects and returns to connections; saved profiles remain available for the next session. Browser Back cannot open the connection manager while a session remains active. Static hosts need an `index.html` fallback for client routes.
 
 ## UI theme and density
 
-Use shadcn/ui preset `b1Zirub0S`: Lyra style, mist base, blue theme/chart colors, Lucide icons, Inter font, default radius, and subtle menu accents. The component base is Radix (`radix-lyra` in `components.json`). Button and Input come from that preset; Inter is bundled through `@fontsource-variable/inter`.
+Use shadcn/ui preset `b1Zirub0S`: Lyra style, mist base, blue theme/chart colors, Lucide icons, Inter font, default radius, and subtle menu accents. The component base is Radix (`radix-lyra` in `components.json`). Button, Input, ButtonGroup, and DropdownMenu come from that preset; Inter is bundled through `@fontsource-variable/inter`.
 
-Theme variables in `src/index.css` own the palette. Application surfaces use those variables; Preview and Program retain separate semantic status colors. The app currently defaults to dark mode through the root HTML class. `tsconfig.json` and `tsconfig.app.json` expose the `@/*` alias for the shadcn CLI and application respectively; Vite resolves it at runtime.
+Style layouts and components directly with Tailwind utilities, including responsive, focus, disabled, dialog backdrop, and selected-state variants. Keep `src/index.css` limited to theme/base integration and exceptional styles that Tailwind cannot reasonably express, such as complex custom animations. Reuse components for recurring UI patterns instead of introducing CSS classes that bundle ordinary utilities.
 
-Keep the interface compact and functional: a 48px appbar, 24px desktop main padding, concise page headings, and no promotional copy or footer. The studio page shows the profile name without a server-address row. Use Lucide Cast for the app icon and `public/favicon.svg`; the favicon uses the same Lucide SVG geometry.
+Theme variables in `src/index.css` own the palette. Preview/Program tokens are exposed through Tailwind color utilities such as `text-preview`, `text-program`, `border-preview`, and `border-program`. Scene tiles use a Preview border or Program border; when selected for both, they retain the Program border and add a Preview ring. `aria-pressed` represents Preview selection, while both labels remain independently visible. Application surfaces use those variables; Preview and Program retain separate semantic status colors. The app currently defaults to dark mode through the root HTML class. `tsconfig.json` and `tsconfig.app.json` expose the `@/*` alias for the shadcn CLI and application respectively; Vite resolves it at runtime.
+
+Keep the interface compact and functional: a 56px (`h-14`) appbar, 24px desktop main padding, concise page headings, and no promotional copy or footer. The appbar centers the logo using equal-width side columns, with Exit using Lucide ChevronLeft (Cancel while connecting) on the left. Only the connected studio shows connection status followed by an icon-only **Refresh OBS state** button on the far right; the connections page omits both controls. Refresh reloads OBS state and is disabled while syncing; its icon spins during synchronization. The studio page shows the profile name without a server-address row or separate Sync button. Use Lucide Cast for the app icon and `public/favicon.svg`; the favicon uses the same Lucide SVG geometry.
+
+Preview and Program use shared `SceneMonitor` panels with `aspect-video` (16:9), a black video surface, and the current scene name centered as the fallback. A full-width `bg-black/60` bar overlays the top edge, with the corresponding indicator aligned right. Long scene names wrap and clamp inside the panel. Video transports and preview toggles are still deferred; when previews can be disabled, retain this centered scene-name fallback.
+
+On desktop, the transition section sits between the two monitors. Its shadcn/ui ButtonGroup has a main button labeled with OBS's current transition and an adjacent dropdown trigger. The dropdown uses radio items for OBS's available transitions; selecting one updates OBS without taking Preview to Program. Only the main button triggers the selected transition. Duration stays below the group. On narrower layouts (below 900px), the monitors remain side by side and the transition section moves beneath them.
+
+Scene order follows OBS’s Scenes dock from top to bottom: `GetSceneList` is returned bottom-to-top, so the client sorts by descending `sceneIndex` before storing names. Apply this normalization on every refresh, including `SceneListChanged`, so startup, manual refresh, and OBS reordering stay consistent.
+
+Scenes occupy a full-width grid beneath both monitors, using auto-fill columns of at least 132px and `aspect-square` tiles. Names are centered; Preview/Program text is centered along the bottom. Long names wrap and clamp, with full names available through the title and accessible label. Scene and transition actions remain disabled while busy or syncing.
 
 To reapply or change the preset, use the shadcn CLI, then inspect generated components and CSS so existing application rules do not override the theme. The preset was applied with `bunx shadcn@latest init --preset b1Zirub0S --base radix --force --no-reinstall --yes`, followed by `bunx shadcn@latest add button input --overwrite --yes`.
 
@@ -33,7 +48,7 @@ To reapply or change the preset, use the shadcn CLI, then inspect generated comp
 
 Program is the current output scene; Preview is the prepared next scene in Studio Mode. A scene can occupy both. Keep their indicators independent.
 
-`selectScene` calls `SetCurrentPreviewScene`. `transition` calls `SetCurrentSceneTransition` before `TriggerStudioModeTransition`; this also changes the transition selected in OBS. Duration and other transition behavior come from OBS, including any OBS-side configuration that affects the result.
+`selectScene` calls `SetCurrentPreviewScene`. `selectTransition` calls `SetCurrentSceneTransition` without triggering any scene change, and refreshes state through the shared command lifecycle. `transition` calls `SetCurrentSceneTransition` before `TriggerStudioModeTransition`; this also changes the transition selected in OBS. Duration and other transition behavior come from OBS, including any OBS-side configuration that affects the result.
 
 Connecting does not enable Studio Mode. `enableStudio` explicitly calls `SetStudioModeEnabled`. Studio-dependent commands are guarded in the client as well as disabled in the UI. Busy and syncing states also block commands.
 
@@ -55,12 +70,20 @@ Only explicitly remembered passwords are persisted; opting out removes the passw
 
 Changes to the persisted schema need an explicit migration/compatibility decision. Keep credential handling within the profile and connection boundaries.
 
+## Saved connection reachability
+
+Each connection card shows a top-right Checking, Online, or Offline badge. `isObsOnline` opens a temporary JSON WebSocket and requires a valid OBS Hello (opcode 0, a WebSocket version string, and RPC version at least 1) within five seconds. It then closes the socket. The probe sends no Identify message, credentials, or OBS commands, so it works with password-protected endpoints without creating additional controller sessions.
+
+Badges check immediately on mount or URL change and schedule another check 15 seconds after each completed check. They keep the last result visible during rechecks. Results stay in component state, not saved profiles. URL edits and leaving/deleting a card cancel its pending probe and recheck timer; outdated results are ignored.
+
+Online means an OBS endpoint is reachable from this browser, not that its password is correct or Studio Mode is enabled. Offline also covers timeouts, non-OBS endpoints, and browser/network restrictions. Connect remains available regardless of the badge result; authentication and session setup still happen only after the operator chooses Connect.
+
 ## Current limitations to consider when changing behavior
 
-- Newly configured transitions can be loaded with Sync; there is no transition-list event subscription.
+- Newly configured transitions can be loaded with the appbar refresh button; there is no transition-list event subscription.
 - Synchronization errors are displayed and release the syncing flag; the previous snapshot may remain visible. A connected status alone does not prove a fresh snapshot.
 - The fallback timeout can unlock controls during unusually long transitions. Externally started transitions rely on the video-end event for unlocking; interrupted transitions require real OBS validation.
 - Scene selections are tracked by names, not UUIDs. Renames trigger a refresh.
-- Validation uses a simulated OBS protocol server and DOM tests; actual OBS/browser acceptance remains outstanding.
+- Validation includes a simulated OBS protocol server, DOM tests, and a targeted read-only scene-order check against real OBS. Full OBS/browser acceptance remains outstanding; see milestone acceptance notes.
 
 Consult the [OBS protocol](https://github.com/obsproject/obs-websocket/blob/master/docs/generated/protocol.md) and [client documentation](https://github.com/obs-websocket-community-projects/obs-websocket-js) when changing protocol interactions. Installed types and the current implementation remain the immediate references for supported calls.

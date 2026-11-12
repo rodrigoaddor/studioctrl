@@ -5,9 +5,13 @@ studioctrl is a desktop-first, browser-based remote controller focused on OBS St
 ## Read before changing the app
 
 - Read [milestones](docs/milestones.md) before planning features or changing scope. It distinguishes implemented behavior, outstanding validation, and deferred ideas.
-- Read [architecture](docs/architecture.md) before changing OBS communication, state, persistence, routing, or UI boundaries.
+- Read [architecture](docs/architecture.md) before changing OBS communication, state, persistence, routing, styling, or UI boundaries.
 - Read [development](docs/development.md) before implementing or validating changes. It covers tooling, test selection, and live OBS checks.
 - Use [README](README.md) for local setup. Use Bun for dependencies and scripts; retain `bun.lock` as the dependency lockfile.
+
+## Styling
+
+Use Tailwind utilities for layout, typography, responsive states, and component styling. Keep CSS for theme tokens/base integration and exceptional styles that utilities cannot reasonably express, such as complex custom animations. See the styling contract in [architecture](docs/architecture.md).
 
 ## Keep documentation current
 

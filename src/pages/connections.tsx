@@ -9,6 +9,7 @@ import {
   X,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { ConnectionStatus } from "../components/connection-status";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { useStudio } from "../context";
@@ -87,9 +88,11 @@ export function Connections() {
     else setConnecting(p);
   }
   return (
-    <main className="connections-page page-width">
-      <div className="page-heading">
-        <h1>Connections</h1>
+    <main className="mx-auto w-[calc(100%-3rem)] max-w-[1200px] py-6 max-[720px]:w-[calc(100%-2rem)] max-[720px]:py-4">
+      <div className="mb-5 flex items-center justify-between gap-4 max-[720px]:gap-3">
+        <h1 className="m-0 text-xl leading-[1.3] font-semibold tracking-[-0.5px]">
+          Connections
+        </h1>
         <Button
           onClick={() => {
             setEditing(null);
@@ -101,16 +104,29 @@ export function Connections() {
         </Button>
       </div>
       {error && !formOpen && (
-        <p role="alert" className="error-box">
+        <p
+          role="alert"
+          className="my-3 border border-[color-mix(in_oklch,var(--destructive)_40%,var(--border))] bg-[color-mix(in_oklch,var(--destructive)_8%,var(--background))] px-3 py-2.5 text-xs text-destructive"
+        >
           {error}
         </p>
       )}
-      <div className="connections-grid">
+      <div className="grid grid-cols-3 gap-3 max-[1000px]:grid-cols-2 max-[720px]:grid-cols-1">
         {profiles.map((p) => (
-          <article className="connection-card" key={p.id}>
-            <h2>{p.name}</h2>
-            <p className="endpoint">{p.url}</p>
-            <div className="connection-footer">
+          <article
+            className="border border-border bg-card p-4 text-card-foreground"
+            key={p.id}
+          >
+            <div className="mb-1.5 flex items-start justify-between gap-2">
+              <h2 className="min-w-0 text-[15px] font-medium wrap-anywhere">
+                {p.name}
+              </h2>
+              <ConnectionStatus key={p.url} url={p.url} name={p.name} />
+            </div>
+            <p className="m-0 font-mono text-xs text-muted-foreground wrap-anywhere">
+              {p.url}
+            </p>
+            <div className="mt-3.5 mb-2.5 flex items-center justify-between gap-2">
               <span className="text-xs text-muted-foreground flex items-center gap-1.5">
                 {p.rememberPassword ? (
                   <>
@@ -172,24 +188,29 @@ export function Connections() {
           </article>
         ))}
         {profiles.length === 0 && (
-          <section className="empty-connections">
-            <h2>No saved connections</h2>
-            <p>Add an OBS WebSocket connection.</p>
+          <section className="col-span-full border border-dashed border-border p-6 text-center">
+            <h2 className="m-0 text-sm font-medium">No saved connections</h2>
+            <p className="mt-2 text-xs leading-[1.6] text-muted-foreground">
+              Add an OBS WebSocket connection.
+            </p>
           </section>
         )}
       </div>
-      <p className="setup-note">
+      <p className="mt-4 text-xs text-muted-foreground">
         Enable the server in OBS under Tools → WebSocket Server Settings.
       </p>
       <dialog
+        className="m-auto w-[calc(100%-2rem)] max-w-[440px] border border-border bg-popover p-5 text-popover-foreground shadow-[0_12px_40px_#0004] backdrop:bg-black/50"
         ref={dialog}
         onCancel={() => setFormOpen(false)}
         onClose={() => setFormOpen(false)}
       >
         {formOpen && (
           <form onSubmit={save} key={editing?.id ?? "new"}>
-            <div className="dialog-heading">
-              <h2>{editing ? "Edit connection" : "New connection"}</h2>
+            <div className="flex items-center justify-between gap-2.5">
+              <h2 className="m-0 text-base font-medium">
+                {editing ? "Edit connection" : "New connection"}
+              </h2>
               <Button
                 type="button"
                 variant="ghost"
@@ -200,7 +221,7 @@ export function Connections() {
                 <X />
               </Button>
             </div>
-            <label>
+            <label className="mt-4 flex flex-col gap-[7px] text-xs">
               Connection name
               <Input
                 name="name"
@@ -211,7 +232,7 @@ export function Connections() {
                 maxLength={100}
               />
             </label>
-            <label>
+            <label className="mt-4 flex flex-col gap-[7px] text-xs">
               WebSocket address
               <Input
                 name="url"
@@ -221,7 +242,7 @@ export function Connections() {
                 spellCheck={false}
               />
             </label>
-            <label>
+            <label className="mt-4 flex flex-col gap-[7px] text-xs">
               Saved password
               <Input
                 name="password"
@@ -231,23 +252,27 @@ export function Connections() {
                 placeholder="Optional"
               />
             </label>
-            <label className="checkbox-label">
+            <label className="mt-4 flex items-center gap-2 text-xs">
               <input
                 type="checkbox"
+                className="size-3.5 accent-primary"
                 name="remember"
                 defaultChecked={editing?.rememberPassword ?? false}
               />{" "}
               Remember password in this browser
             </label>
-            <p className="field-help">
+            <p className="mt-2 text-[11px] leading-[1.6] text-muted-foreground">
               Saved passwords are stored unencrypted in this browser.
             </p>
             {error && (
-              <p role="alert" className="error-box">
+              <p
+                role="alert"
+                className="my-3 border border-[color-mix(in_oklch,var(--destructive)_40%,var(--border))] bg-[color-mix(in_oklch,var(--destructive)_8%,var(--background))] px-3 py-2.5 text-xs text-destructive"
+              >
                 {error}
               </p>
             )}
-            <div className="dialog-actions">
+            <div className="mt-5 flex justify-end gap-2">
               <Button
                 type="button"
                 variant="outline"
@@ -261,6 +286,7 @@ export function Connections() {
         )}
       </dialog>
       <dialog
+        className="m-auto w-[calc(100%-2rem)] max-w-[440px] border border-border bg-popover p-5 text-popover-foreground shadow-[0_12px_40px_#0004] backdrop:bg-black/50"
         ref={passwordDialog}
         onCancel={() => setConnecting(null)}
         onClose={() => setConnecting(null)}
@@ -275,8 +301,10 @@ export function Connections() {
               void connect(connecting, password);
             }}
           >
-            <div className="dialog-heading">
-              <h2>Connect to {connecting.name}</h2>
+            <div className="flex items-center justify-between gap-2.5">
+              <h2 className="m-0 text-base font-medium">
+                Connect to {connecting.name}
+              </h2>
               <Button
                 type="button"
                 variant="ghost"
@@ -287,8 +315,10 @@ export function Connections() {
                 <X />
               </Button>
             </div>
-            <p className="dialog-description endpoint">{connecting.url}</p>
-            <label>
+            <p className="mt-2 mb-4 font-mono text-xs text-muted-foreground wrap-anywhere">
+              {connecting.url}
+            </p>
+            <label className="mt-4 flex flex-col gap-[7px] text-xs">
               OBS WebSocket password
               <Input
                 name="password"
@@ -298,10 +328,10 @@ export function Connections() {
                 placeholder="Leave empty if authentication is disabled"
               />
             </label>
-            <p className="field-help">
+            <p className="mt-2 text-[11px] leading-[1.6] text-muted-foreground">
               This password is used for this connection only.
             </p>
-            <div className="dialog-actions">
+            <div className="mt-5 flex justify-end gap-2">
               <Button
                 type="button"
                 variant="outline"

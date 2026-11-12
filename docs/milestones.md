@@ -6,6 +6,7 @@ This file owns product scope, decisions, milestone status, and deferred work. Se
 
 - Build for larger screens first. Phone-first layouts are outside the initial target. Keep the interface compact with concise functional copy and no promotional sections or footer.
 - Use a client-rendered React application with Vite, TypeScript, Tailwind CSS, editable shadcn/ui components, and simple React Router routes. SSR is unnecessary for the current scope.
+- Use Tailwind utilities for application styling; reserve CSS for theme/base integration and styles that utilities cannot reasonably express.
 - Use Bun for dependencies and script execution.
 - Connect directly to the OBS built-in WebSocket server. The operator supplies a reachable address, potentially through a network such as Tailscale.
 - Operate only in Studio Mode. If disabled, offer an explicit enable button; connecting alone must not enable it.
@@ -19,13 +20,13 @@ This file owns product scope, decisions, milestone status, and deferred work. Se
 
 Delivered scope:
 
-- Connection page with profile creation, editing, deletion, selection, and connection.
+- Connection page with profile creation, editing, deletion, selection, and connection, plus automatically refreshed per-profile Online/Offline reachability badges.
 - Optional remembered passwords and a connection-time prompt otherwise.
 - Studio Mode gate with an enable button.
-- Separate Preview and Program scene names and scene-list indicators, including when both select the same scene.
-- Scene selection changes Preview only.
-- A button for each transition returned by OBS. Each button selects that transition and triggers the Studio Mode transition using OBS settings.
-- Event-driven synchronization with OBS, explicit Sync, busy controls, visible request errors, and disconnect handling.
+- Separate 16:9 Preview and Program monitor placeholders with centered scene names and top-right indicators on translucent overlay bars, plus scene-tile indicators, including when both select the same scene.
+- Square scene buttons below both monitors have centered names, bottom Preview/Program labels, and selection-colored borders; scene selection changes Preview only.
+- A split shadcn/ui ButtonGroup between the monitors triggers the currently selected OBS transition. Its dropdown selects other OBS transitions without triggering them; duration and other settings come from OBS.
+- Event-driven synchronization with OBS, manual refresh in the appbar, busy controls, visible request errors, and disconnect handling.
 - Automated protocol, connection-management UI, and persistence tests; production build verification.
 
 Acceptance to close M1:
@@ -34,7 +35,9 @@ Acceptance to close M1:
 - Complete and record the live OBS checklist there, including Cut, Fade, a stinger if available, external changes, and connection recovery.
 - Record remaining issues as limitations or follow-up scope instead of describing unverified behavior as validated.
 
-Automated checks passed when the base was implemented. A real OBS instance and visual browser QA have not yet been used to verify it.
+Automated checks passed when the base was implemented. Full live OBS acceptance and visual browser QA remain outstanding.
+
+Targeted live verification on 2026-11-11: read-only checks against OBS 33.0.1 / obs-websocket 5.7.6 on macOS Tahoe 26.6.2 verified the shared client's ordering for all 10 scenes. The original response order differed from the Scenes dock; sorting by descending `sceneIndex` matched it. Program and Preview selections were unchanged. Automated regressions also cover initial ordering and `SceneListChanged`; a live reorder and the rest of the acceptance checklist have not been exercised.
 
 ## M2 — Reliability validation and fixes
 
@@ -46,7 +49,7 @@ Acceptance: document the tested environment and results, add regression coverage
 
 ## M3 — Preview and Program video
 
-**Status: deferred; transport and sequencing undecided.**
+**Status: 16:9 monitor layout and scene-name fallback implemented; video transport, preview toggles, and sequencing deferred.**
 
 Candidate browser transports from the initial brief:
 

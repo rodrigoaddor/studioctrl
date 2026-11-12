@@ -14,8 +14,11 @@ Run tests through `bun run test` so they use Vitest and the configured DOM envir
 
 For implementation changes, run `bun run test` and `bun run build`. Add focused regression coverage for new behavior or fixed bugs where useful. Report failures or checks that could not run.
 
-- `tests/obs.test.ts` uses a real local WebSocket server simulating OBS v5, including authentication. Extend it for request ordering, events, session state, and failure behavior.
-- `tests/connections.test.tsx` uses Testing Library with jsdom for profile management and password forms. Its dialog methods are shimmed; it does not prove native dialog focus or browser layout behavior.
+- `tests/obs.test.ts` uses a real local WebSocket server simulating OBS v5, including authentication. It covers top-to-bottom scene ordering at connection time and after `SceneListChanged`, alongside request ordering, events, session state, and failure behavior.
+- `tests/reachability.test.ts` covers OBS Hello validation, unauthenticated probing, network failures, timeout, and cancellation using a controlled WebSocket double.
+- `tests/connection-status.test.tsx` covers badge rechecks, unmount cleanup, and discarded results after URL edits.
+- `tests/connections.test.tsx` uses Testing Library with jsdom for profile management, password forms, and independent per-profile reachability badges. Its dialog methods are shimmed; it does not prove native dialog focus or browser layout behavior.
+- `tests/studio.test.tsx` covers dropdown selection versus explicit transition triggering, scene selection, independent Preview/Program indicators, and busy-state guards.
 - `tests/navigation.test.tsx` covers the single-session navigation contract, Exit, and connection-route redirects.
 - `tests/profiles.test.ts` covers password persistence, malformed storage, and URL validation.
 
@@ -25,12 +28,12 @@ The protocol simulator is a controlled test double, not OBS. Passing tests do no
 
 Use an OBS instance and reachable WebSocket address supplied for testing. Record OBS version, browser/version, operating system, network/address scheme, and the date in the milestone acceptance notes when this is performed.
 
-1. Save and edit a connection. Reload to confirm persistence. Verify passwords are omitted unless Remember password is enabled, and removed after opting out.
+1. Verify reachable OBS endpoints (including password-protected ones) show Online, unavailable endpoints show Offline, and badges update after endpoint availability changes. Save and edit a connection. Reload to confirm persistence. Verify passwords are omitted unless Remember password is enabled, and removed after opting out.
 2. Connect with valid credentials, then verify clear feedback for invalid credentials and an unavailable endpoint. Confirm cancellation leaves no usable stale controls. While connected, confirm the brand link and Browser Back keep the active studio visible; **Exit** must disconnect and return to saved connections.
 3. Start with Studio Mode disabled. Confirm the gate appears and connecting leaves OBS unchanged; enable it using the explicit button.
-4. Select scenes and confirm only Preview changes. Check Program/Preview labels, including the case where both select the same scene.
-5. Trigger Cut and Fade using their individual buttons. Confirm the selected OBS transition and resulting Program scene, using OBS's actual preview swap behavior. Test a stinger if available and confirm controls remain locked through playback.
-6. Change scenes, names, Studio Mode, transition settings, and scene collection in OBS. Confirm the app catches up. Add a transition and verify Sync reloads the list.
+4. Compare scene order against the OBS Scenes dock at connection time and after reordering in OBS. Select scenes from the square button grid and confirm only Preview changes. Verify centered names, bottom state labels, and distinct Preview/Program borders. Check Program/Preview labels, including the case where both select the same scene.
+5. Select Cut and Fade through the split control dropdown, verifying that choosing an option changes the selected transition without taking Program. Trigger each using the main button. Confirm the selected OBS transition and resulting Program scene, using OBS's actual preview swap behavior. Test a stinger if available and confirm controls remain locked through playback.
+6. Change scenes, names, Studio Mode, transition settings, and scene collection in OBS. Confirm the app catches up. Add a transition and verify the appbar refresh button reloads the list.
 7. Exercise rapid changes and interrupted transitions. Record any stale selection or stuck busy state, including behavior around the 30-second fallback.
 8. Stop OBS or interrupt the network, then reconnect through a saved profile. Verify old scene state clears and the new session is accurate.
 9. Inspect the desktop layout, keyboard navigation, dialogs/focus, long scene names, empty lists, and visible error feedback in the actual browser.
