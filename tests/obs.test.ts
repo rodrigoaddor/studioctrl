@@ -794,3 +794,44 @@ it("naturally caches a live feed and restores fallback eligibility when the feed
   expect(client.getSnapshot().previewReady).toBeNull();
   expect(client.getSnapshot().thumbnails.Camera).toBeTruthy();
 });
+
+it("generates a thumbnail only for the requested scene and restores Preview", async () => {
+  await connect();
+  await client.enableStudio();
+  const original = preview;
+  requests = [];
+  await client.generatePreviews("Starting");
+  expect(client.getSnapshot().thumbnails.Starting).toBeTruthy();
+  expect(client.getSnapshot().thumbnails.Camera).toBeUndefined();
+  expect(preview).toBe(original);
+  expect(requests).not.toContain("TriggerStudioModeTransition");
+});
+
+it("persists hidden scenes across reconnects and isolates collections", async () => {
+  const saved = new Map<string, string>();
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) => saved.get(key) ?? null,
+    setItem: (key: string, value: string) => saved.set(key, value),
+    removeItem: (key: string) => saved.delete(key),
+  });
+  try {
+    await connect();
+    client.setSceneHidden("Camera", true);
+    expect(client.getSnapshot().hiddenScenes).toEqual(["Camera"]);
+    client.disconnect();
+    await connect();
+    expect(client.getSnapshot().hiddenScenes).toEqual(["Camera"]);
+    collectionName = "Collection B";
+    await client.refresh();
+    expect(client.getSnapshot().hiddenScenes).toEqual([]);
+    collectionName = "Collection A";
+    await client.refresh();
+    expect(client.getSnapshot().hiddenScenes).toEqual(["Camera"]);
+    client.setSceneHidden("Camera", false);
+    await client.refresh();
+    expect(client.getSnapshot().hiddenScenes).toEqual([]);
+    expect(saved.size).toBe(0);
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});

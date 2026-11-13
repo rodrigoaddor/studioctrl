@@ -22,6 +22,8 @@ export function Studio() {
     previewEpoch,
     thumbnails,
     generating,
+    hiddenScenes,
+    showHiddenScenes,
   } = useStudio();
   useEffect(() => {
     if (status !== "connected" || !studio) return;
@@ -39,6 +41,9 @@ export function Studio() {
   }, [client, status, studio, previewEpoch]);
   if (status !== "connected") return <Navigate to="/" replace />;
   const disabled = busy || syncing || !!generating;
+  const visibleScenes = scenes.filter(
+    (scene) => showHiddenScenes || !hiddenScenes.includes(scene),
+  );
   return (
     <main className="mx-auto w-[calc(100%-3rem)] max-w-7xl py-6 max-[720px]:w-[calc(100%-2rem)] max-[720px]:py-4">
       {!studio ? (
@@ -82,7 +87,7 @@ export function Studio() {
               type="auto"
             >
               <div className="grid w-max grid-flow-col auto-cols-[132px] gap-3 p-1">
-                {scenes.map((scene) => (
+                {visibleScenes.map((scene) => (
                   <SceneButton
                     key={scene}
                     name={scene}
@@ -90,15 +95,25 @@ export function Studio() {
                     isPreview={preview === scene}
                     isProgram={program === scene}
                     disabled={disabled}
+                    hidden={hiddenScenes.includes(scene)}
+                    onGenerate={() => void client.generatePreviews(scene)}
+                    onToggleHidden={() =>
+                      client.setSceneHidden(
+                        scene,
+                        !hiddenScenes.includes(scene),
+                      )
+                    }
                     onSelect={() => void client.selectScene(scene)}
                   />
                 ))}
               </div>
               <ScrollBar orientation="horizontal" className="hidden" />
             </ScrollArea>
-            {!scenes.length && (
+            {!visibleScenes.length && (
               <p className="py-4 text-xs text-muted-foreground">
-                No scenes available in this scene collection.
+                {scenes.length
+                  ? "All scenes are hidden. Enable Show hidden scenes in OBS actions to view them."
+                  : "No scenes available in this scene collection."}
               </p>
             )}
           </section>

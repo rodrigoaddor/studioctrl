@@ -22,6 +22,7 @@ The app is a browser-only SPA. It maintains one active OBS controller session at
 | `src/lib/screenshot-preview.ts` | Sequential capture/decode pacing and canvas presentation. |
 | `src/lib/scene-previews.ts` | Enabled media traversal, representative-frame checks, and guarded Preview-only batch generation. |
 | `src/lib/preview-cache.ts` | Browser-local IndexedDB thumbnail persistence, with session-only fallback. |
+| `src/lib/scene-visibility.ts` | Per-endpoint/collection/scene hidden status in localStorage, with session fallback if storage fails. |
 | `src/lib/monitor-settings.ts` | Per-profile, per-monitor browser-local preview mode preferences. |
 | `src/components/connection-status.tsx` | Per-profile reachability badge and automatic rechecks while mounted. |
 | `src/components/scan-qr-code.tsx` | Add-connection camera/image QR scanner with media lifecycle cleanup. |
@@ -82,6 +83,10 @@ Scene order follows OBS’s Scenes dock from top to bottom: `GetSceneList` is re
 The shared application shell uses `min-h-dvh` so its minimum height follows the visible viewport as browser toolbars appear or disappear; content can still scroll vertically when needed.
 
 The scenes Scroll Area applies shadcn's `scroll-fade-x` utility to its viewport. The utility comes from the existing `shadcn/tailwind.css` import: supporting browsers track the horizontal scroll position; browsers without scroll-driven animations use the utility's static edge-fade fallback.
+
+Each scene tile opens a non-modal Radix context menu on right-click or touch long press. **Generate preview** runs the existing guarded generation flow for only that scene; **Hide scene** removes it from this controller's list without modifying OBS or current Preview/Program. The appbar's **Show hidden scenes** checkbox reveals hidden tiles with a top-left Lucide EyeOff icon and an accessible Hidden label. Their context menu offers **Show scene** to restore visibility. The checkbox is session-only and defaults off. Generation is unavailable while busy/syncing/generating; local visibility actions remain available. Long-press clicks are suppressed so opening the menu does not select Preview.
+
+Hidden flags use localStorage keys prefixed `studioctrl.hidden-scene.v1:` followed by the same endpoint/collection/scene UUID identity used for thumbnail caching (scene-name fallback). Refresh/reconnect hydrates flags; UUID-backed renames preserve them. Storage failure keeps session-only flags. Hiding affects only the scene list: monitors, media controls, scene order, and global Generate Previews still use OBS's full scene list. Site-data clearing removes flags.
 
 Scenes occupy one horizontally scrollable row beneath both monitors, using shadcn/ui Scroll Area with a hidden horizontal ScrollBar, fixed 132px columns, and `aspect-square` tiles. The horizontal ScrollBar stays mounted to enable Radix's horizontal viewport scrolling, but has no visible track or thumb. The visible section header is omitted; the section retains its accessible Scenes label. Row padding leaves room for selection rings and keyboard focus outlines. Names are centered; Preview/Program text is centered along the bottom. Long names wrap and clamp, with full names available through the title and accessible label. Preview uses saturated green and Program uses vivid red, with a larger brightness difference in the default dark theme; independent text labels also identify each state. Scene and transition actions remain guarded while busy or syncing without transient dimming or focus loss.
 

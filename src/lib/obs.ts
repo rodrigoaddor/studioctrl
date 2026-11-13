@@ -8,6 +8,7 @@ import {
   liveMediaReady,
 } from "./scene-previews";
 import { readPreview, writePreview } from "./preview-cache";
+import { isSceneHidden, saveSceneHidden } from "./scene-visibility";
 
 export const MIN_TRANSITION_DURATION = 50;
 export const MAX_TRANSITION_DURATION = 20_000;
@@ -30,6 +31,8 @@ export interface StudioState {
   previewReady: string | null;
   generating: { scene: string; completed: number; total: number } | null;
   scenes: string[];
+  hiddenScenes: string[];
+  showHiddenScenes: boolean;
   preview: string | null;
   program: string | null;
   transitions: string[];
@@ -48,6 +51,8 @@ const initial: StudioState = {
   previewReady: null,
   generating: null,
   scenes: [],
+  hiddenScenes: [],
+  showHiddenScenes: false,
   preview: null,
   program: null,
   transitions: [],
@@ -240,6 +245,9 @@ export class StudioClient {
         );
         this.update({
           thumbnails,
+          hiddenScenes: [...keys]
+            .filter(([, key]) => isSceneHidden(key))
+            .map(([name]) => name),
           previewReady:
             preview?.sceneName === this.state.preview
               ? this.state.previewReady
@@ -340,8 +348,26 @@ export class StudioClient {
       this.collecting = false;
     }
   };
-  generatePreviews = () =>
+  setShowHiddenScenes = (showHiddenScenes: boolean) => {
+    this.update({ showHiddenScenes });
+  };
+  setSceneHidden = (scene: string, hidden: boolean) => {
+    const key = this.cacheKeys.get(scene);
+    if (!key) return;
+    saveSceneHidden(key, hidden);
+    this.update({
+      hiddenScenes: this.state.scenes.filter((name) =>
+        name === scene ? hidden : this.state.hiddenScenes.includes(name),
+      ),
+    });
+  };
+  generatePreviews = (scene?: string) =>
     this.command(async (obs) => {
+      const scenes =
+        scene === undefined
+          ? [...this.state.scenes]
+          : this.state.scenes.filter((name) => name === scene);
+      if (!scenes.length) return;
       const epoch = this.state.previewEpoch;
       const current = () =>
         this.obs === obs &&
@@ -351,13 +377,13 @@ export class StudioClient {
         generating: {
           scene: "",
           completed: 0,
-          total: this.state.scenes.length,
+          total: scenes.length,
         },
       });
       try {
         const skipped = await generateScenePreviews({
           obs,
-          scenes: [...this.state.scenes],
+          scenes,
           current,
           capture: this.getScreenshot,
           save: (scene, frame) =>
@@ -370,7 +396,7 @@ export class StudioClient {
                 generating: {
                   scene,
                   completed,
-                  total: this.state.scenes.length,
+                  total: scenes.length,
                 },
               });
           },

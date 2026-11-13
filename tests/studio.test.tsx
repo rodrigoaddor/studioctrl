@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { Studio } from "../src/pages/studio";
@@ -224,4 +224,41 @@ it("keeps controls mounted and visually enabled during background refresh while 
   screen.getByRole("button", { name: "Select transition" }).focus();
   await user.keyboard("{ArrowDown}");
   expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+});
+
+it("opens scene actions without selecting Preview and generates only the requested scene", async () => {
+  const select = vi.spyOn(client, "selectScene").mockResolvedValue(undefined);
+  const generate = vi.spyOn(client, "generatePreviews").mockResolvedValue(undefined);
+  render(app());
+  fireEvent.contextMenu(screen.getByRole("button", { name: "Slides" }));
+  expect(select).not.toHaveBeenCalled();
+  await userEvent.setup().click(screen.getByRole("menuitem", { name: "Generate preview" }));
+  expect(generate).toHaveBeenCalledExactlyOnceWith("Slides");
+});
+it("filters hidden scenes, marks them when revealed, and allows restoring them", async () => {
+  const hide = vi.spyOn(client, "setSceneHidden");
+  vi.mocked(useStudio).mockReturnValue({ client, ...state, hiddenScenes: ["Slides"] });
+  const { rerender } = render(app());
+  expect(screen.queryByRole("button", { name: "Slides Hidden" })).not.toBeInTheDocument();
+  vi.mocked(useStudio).mockReturnValue({ client, ...state, hiddenScenes: ["Slides"], showHiddenScenes: true });
+  rerender(app());
+  const tile = screen.getByRole("button", { name: "Slides Hidden" });
+  expect(within(tile).getByLabelText("Hidden scene")).toBeInTheDocument();
+  fireEvent.contextMenu(tile);
+  await userEvent.setup().click(screen.getByRole("menuitem", { name: "Show scene" }));
+  expect(hide).toHaveBeenCalledExactlyOnceWith("Slides", false);
+});
+it("opens actions on touch long press without selecting the scene", async () => {
+  vi.useFakeTimers();
+  const select = vi.spyOn(client, "selectScene").mockResolvedValue(undefined);
+  render(app());
+  const tile = screen.getByRole("button", { name: "Slides" });
+  const pointer = new Event("pointerdown", { bubbles: true });
+  Object.assign(pointer, { pointerType: "touch", clientX: 20, clientY: 20 });
+  fireEvent(tile, pointer);
+  await vi.advanceTimersByTimeAsync(750);
+  expect(screen.getByRole("menuitem", { name: "Hide scene" })).toBeInTheDocument();
+  fireEvent.click(tile);
+  expect(select).not.toHaveBeenCalled();
+  vi.useRealTimers();
 });

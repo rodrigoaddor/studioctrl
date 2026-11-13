@@ -110,3 +110,13 @@ it("refreshes from the actions dropdown", async () => {
   await user.click(screen.getByRole("menuitem", { name: "Refresh OBS state" }));
   expect(refresh).toHaveBeenCalledOnce();
 });
+
+it("toggles hidden scene visibility from OBS actions", async () => {
+  const toggle = vi.spyOn(client, "setShowHiddenScenes");
+  render(app("/studio"));
+  await userEvent.setup().click(screen.getByRole("button", { name: "OBS actions" }));
+  const item = screen.getByRole("menuitemcheckbox", { name: "Show hidden scenes" });
+  expect(item).toHaveAttribute("aria-checked", "false");
+  await userEvent.setup().click(item);
+  expect(toggle).toHaveBeenCalledExactlyOnceWith(true);
+});

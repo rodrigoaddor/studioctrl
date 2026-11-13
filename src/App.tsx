@@ -1,4 +1,11 @@
-import { ChevronLeft, Circle, RefreshCw, Ellipsis, Images } from "lucide-react";
+import {
+  ChevronLeft,
+  Circle,
+  RefreshCw,
+  Ellipsis,
+  Images,
+  EyeOff,
+} from "lucide-react";
 import { Link, Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { ErrorNotice } from "./components/error-notice";
 import { AppIcon } from "./components/app-icon";
@@ -7,14 +14,25 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuCheckboxItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./components/ui/dropdown-menu";
 import { useStudio } from "./context";
 import { Connections } from "./pages/connections";
 import { Studio } from "./pages/studio";
 export default function App() {
-  const { client, status, profile, syncing, busy, studio, generating, error } =
-    useStudio();
+  const {
+    client,
+    status,
+    profile,
+    syncing,
+    busy,
+    studio,
+    generating,
+    error,
+    showHiddenScenes,
+  } = useStudio();
   const navigate = useNavigate();
   function exit() {
     client.disconnect();
@@ -67,7 +85,10 @@ export default function App() {
                     <Ellipsis />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48 whitespace-nowrap">
+                <DropdownMenuContent
+                  align="end"
+                  className="w-48 whitespace-nowrap"
+                >
                   <DropdownMenuItem
                     disabled={syncing || busy || !!generating}
                     onSelect={() => void client.refresh()}
@@ -80,6 +101,13 @@ export default function App() {
                   >
                     <Images /> Generate Previews
                   </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuCheckboxItem
+                    checked={showHiddenScenes}
+                    onCheckedChange={client.setShowHiddenScenes}
+                  >
+                    <EyeOff /> Show hidden scenes
+                  </DropdownMenuCheckboxItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </>
