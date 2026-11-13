@@ -71,13 +71,13 @@ export function Studio() {
         <>
           <section
             aria-label="Current scenes"
-            className="mb-6 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-4 max-[900px]:grid-cols-2 max-[720px]:gap-3"
+            className="mb-6 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-4 sm:max-[900px]:grid-cols-2 max-sm:grid-cols-1 max-[720px]:gap-3"
           >
             <SceneMonitor kind="preview" sceneName={preview} />
-            <div className="self-stretch max-[900px]:col-span-2 max-[900px]:row-start-2">
+            <div className="self-stretch max-[900px]:col-span-full sm:max-[900px]:row-start-2 max-sm:row-start-3">
               <TransitionControl />
             </div>
-            <div className="min-w-0 max-[900px]:col-start-2 max-[900px]:row-start-1">
+            <div className="min-w-0 sm:max-[900px]:col-start-2 sm:max-[900px]:row-start-1 max-sm:row-start-2">
               <SceneMonitor kind="program" sceneName={program} />
             </div>
           </section>

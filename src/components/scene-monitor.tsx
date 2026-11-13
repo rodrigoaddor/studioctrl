@@ -55,7 +55,10 @@ export function SceneMonitor({
   return (
     <article
       aria-label={`${label} monitor`}
-      className="relative aspect-video w-full min-w-0 overflow-hidden border border-border bg-black text-white"
+      className={cn(
+        "relative aspect-video w-full min-w-0 overflow-hidden border border-border bg-black text-white max-sm:mx-auto max-sm:max-w-sm",
+        mode === "none" && "max-sm:aspect-auto",
+      )}
     >
       {mode !== "remote" && (!continuingFade || finishedFade !== fade) && (
         <MonitorPicture
@@ -84,7 +87,10 @@ export function SceneMonitor({
         onClose={() => { setRemoteOpen(false); settingsButton.current?.focus(); }} onSave={(settings) => {
           setRemoteOverride({ key: settingsKey, settings }); setMode("remote");
         }} />}
-      <div className="absolute inset-x-0 top-0 z-10 grid h-9 grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)] items-center bg-black/60 text-xs">
+      <div className={cn(
+        "absolute inset-x-0 top-0 z-10 grid h-9 grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)] items-center bg-black/60 text-xs",
+        mode === "none" && "max-sm:relative",
+      )}>
         <span
           className="flex min-w-0 items-center gap-1.5 pl-3"
           title={
@@ -102,10 +108,10 @@ export function SceneMonitor({
           {label}
         </span>
         <span
-          className="min-w-0 truncate px-2 text-center"
-          title={hasImage ? (mode === "remote" ? "Remote stream" : sceneName ?? undefined) : undefined}
+          className={cn("min-w-0 truncate px-2 text-center", mode === "none" && "sm:hidden")}
+          title={mode === "none" ? sceneName ?? undefined : hasImage ? (mode === "remote" ? "Remote stream" : sceneName ?? undefined) : undefined}
         >
-          {hasImage ? (mode === "remote" ? "Remote stream" : sceneName) : null}
+          {mode === "none" ? sceneName ?? `No ${kind} scene` : hasImage ? (mode === "remote" ? "Remote stream" : sceneName) : null}
         </span>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -208,7 +214,7 @@ function MonitorPicture({ kind, sceneName, mode, onImageChange }: {
         />
       )}
       {!hasImage && (
-        <div className="absolute inset-0 grid place-items-center px-6 py-12">
+        <div className={cn("absolute inset-0 grid place-items-center px-6 py-12", mode === "none" && "max-sm:hidden")}>
           <h2
             className="font-heading line-clamp-3 text-center text-xl font-medium wrap-anywhere max-[720px]:text-base"
             title={sceneName ?? undefined}

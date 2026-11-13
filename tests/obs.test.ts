@@ -4,12 +4,13 @@ import { createHash } from "node:crypto";
 import { StudioClient } from "../src/lib/obs";
 
 import { usablePreview } from "../src/lib/scene-previews";
-import { readPreview, writePreview } from "../src/lib/preview-cache";
+import { clearPreviews, readPreview, writePreview } from "../src/lib/preview-cache";
 vi.mock("../src/lib/scene-previews", async (original) => ({
   ...(await original<typeof import("../src/lib/scene-previews")>()),
   usablePreview: vi.fn(async () => true),
 }));
 vi.mock("../src/lib/preview-cache", () => ({
+  clearPreviews: vi.fn(async () => {}),
   readPreview: vi.fn(async () => undefined),
   writePreview: vi.fn(async () => {}),
 }));
@@ -42,6 +43,12 @@ let holdSceneItems: boolean;
 let heldSceneReply: (() => void) | undefined;
 let mediaActions: { inputName: string; mediaAction: string }[];
 let rejectMediaAction: boolean;
+let streamOutput: { outputActive: boolean; outputDuration: number; outputReconnecting: boolean };
+let recordOutput: { outputActive: boolean; outputDuration: number; outputPaused: boolean };
+let rejectStreamStatus: boolean;
+let rejectOutputCommand: boolean;
+let holdOutputStatus: boolean;
+let heldOutputReplies: (() => void)[];
 function event(eventType: string, eventData = {}) {
   socket.send(
     JSON.stringify({ op: 5, d: { eventType, eventIntent: 1, eventData } }),
@@ -51,6 +58,7 @@ beforeEach(async () => {
   vi.mocked(usablePreview).mockResolvedValue(true);
   vi.mocked(readPreview).mockResolvedValue(undefined);
   vi.mocked(writePreview).mockClear();
+  vi.mocked(clearPreviews).mockReset().mockResolvedValue(undefined);
   collectionName = "Collection A";
   studio = false;
   preview = "Camera";
@@ -74,6 +82,12 @@ beforeEach(async () => {
   heldSceneReply = undefined;
   mediaActions = [];
   rejectMediaAction = false;
+  streamOutput = { outputActive: true, outputDuration: 3_600_000, outputReconnecting: false };
+  recordOutput = { outputActive: false, outputDuration: 0, outputPaused: false };
+  rejectStreamStatus = false;
+  rejectOutputCommand = false;
+  holdOutputStatus = false;
+  heldOutputReplies = [];
   // OBS sends its Scenes dock bottom-to-top, with the top scene at the highest index.
   sceneList = ["Slides", "Camera", "Starting"].map((sceneName, sceneIndex) => ({
     sceneName,
@@ -114,6 +128,23 @@ beforeEach(async () => {
       let responseData: object = {};
       let result = true;
       switch (d.requestType) {
+        case "StartStream":
+        case "StopStream":
+          result = !rejectOutputCommand;
+          if (result) streamOutput.outputActive = d.requestType === "StartStream";
+          break;
+        case "StartRecord":
+        case "StopRecord":
+          result = !rejectOutputCommand;
+          if (result) recordOutput.outputActive = d.requestType === "StartRecord";
+          break;
+        case "GetStreamStatus":
+          result = !rejectStreamStatus;
+          responseData = streamOutput;
+          break;
+        case "GetRecordStatus":
+          responseData = recordOutput;
+          break;
         case "GetInputList":
           responseData = { inputs: [
             { inputName: "Clip", inputKind: "ffmpeg_source", unversionedInputKind: "ffmpeg_source" },
@@ -236,7 +267,8 @@ beforeEach(async () => {
           },
         }),
       );
-      if (d.requestType === "GetSceneItemList" && holdSceneItems) heldSceneReply = reply;
+      if (holdOutputStatus && ["GetStreamStatus", "GetRecordStatus"].includes(d.requestType)) heldOutputReplies.push(reply);
+      else if (d.requestType === "GetSceneItemList" && holdSceneItems) heldSceneReply = reply;
       else reply();
     });
   });
@@ -254,6 +286,127 @@ async function connect(password = "test-password") {
   );
 }
 describe("OBS v5 integration", () => {
+  it("starts and stops outputs explicitly without Studio Mode or scene mutations", async () => {
+    await connect();
+    streamOutput.outputActive = false;
+    requests = [];
+    for (const output of ["stream", "recording"] as const) {
+      expect(await client.setOutputActive(output, true)).toBe(true);
+      expect(await client.setOutputActive(output, true)).toBe(true);
+      expect(await client.setOutputActive(output, false)).toBe(true);
+    }
+    expect(requests.filter((type) => /^(Start|Stop)(Stream|Record)$/.test(type)))
+      .toEqual(["StartStream", "StopStream", "StartRecord", "StopRecord"]);
+    expect(requests).not.toContain("SetCurrentProgramScene");
+    expect(requests).not.toContain("SetCurrentPreviewScene");
+    expect(client.getSnapshot()).toMatchObject({ studio: false, program: "Starting", preview: null, busy: false });
+  });
+  it("reports output command failures and blocks concurrent commands", async () => {
+    await connect();
+    rejectOutputCommand = true;
+    expect(await client.setOutputActive("stream", false)).toBe(false);
+    expect(client.getSnapshot().error).toBeTruthy();
+    expect(client.getSnapshot().busy).toBe(false);
+    rejectOutputCommand = false;
+    holdOutputStatus = true;
+    const pending = client.setOutputActive("stream", false);
+    await vi.waitFor(() => expect(heldOutputReplies).toHaveLength(1));
+    expect(await client.setOutputActive("recording", true)).toBe(false);
+    heldOutputReplies.forEach((reply) => reply());
+    expect(await pending).toBe(true);
+    expect(requests).not.toContain("StartRecord");
+  });
+  it("does not mutate an output after its status read outlives the session", async () => {
+    await connect();
+    holdOutputStatus = true;
+    const pending = client.setOutputActive("stream", false);
+    await vi.waitFor(() => expect(heldOutputReplies).toHaveLength(1));
+    client.disconnect();
+    heldOutputReplies.forEach((reply) => reply());
+    expect(await pending).toBe(false);
+    expect(requests).not.toContain("StopStream");
+  });
+  it("clears current scene thumbnails including hidden scenes without OBS requests", async () => {
+    vi.mocked(readPreview).mockResolvedValue("data:image/jpeg;base64,saved");
+    await connect();
+    await vi.waitFor(() => expect(Object.keys(client.getSnapshot().thumbnails)).toHaveLength(3));
+    client.setSceneHidden("Camera", true);
+    requests = [];
+    const epoch = client.getSnapshot().previewEpoch;
+    await client.resetPreviews();
+    expect(clearPreviews).toHaveBeenCalledExactlyOnceWith(sceneList.map((scene) => JSON.stringify([url, "Collection A", scene.sceneName])));
+    expect(client.getSnapshot()).toMatchObject({ thumbnails: {}, previewReady: null, previewEpoch: epoch + 1,
+      busy: false, studio: false, preview: null, program: "Starting", hiddenScenes: ["Camera"] });
+    expect(requests).toEqual([]);
+  });
+  it("discards pending thumbnail hydration after reset", async () => {
+    let resolve!: (frame: string) => void;
+    vi.mocked(readPreview).mockImplementation(() => new Promise((done) => { resolve = done; }));
+    await connect();
+    await client.resetPreviews();
+    resolve("data:image/jpeg;base64,obsolete");
+    await Promise.resolve();
+    expect(client.getSnapshot().thumbnails).toEqual({});
+  });
+  it("reports reset storage failures, releases controls, and allows retry", async () => {
+    await connect();
+    vi.mocked(clearPreviews).mockRejectedValueOnce(new Error("Storage blocked"));
+    await client.resetPreviews();
+    expect(client.getSnapshot()).toMatchObject({ thumbnails: {}, busy: false, error: "Could not clear saved previews. Please try again." });
+    await client.resetPreviews();
+    expect(client.getSnapshot().error).toBeNull();
+  });
+  it("blocks repeated resets and does not restore state after disconnect", async () => {
+    await connect();
+    let resolve!: () => void;
+    vi.mocked(clearPreviews).mockImplementationOnce(() => new Promise((done) => { resolve = done; }));
+    const pending = client.resetPreviews();
+    await client.resetPreviews();
+    expect(clearPreviews).toHaveBeenCalledOnce();
+    expect(client.getSnapshot().busy).toBe(true);
+    client.disconnect();
+    resolve();
+    await pending;
+    expect(client.getSnapshot()).toMatchObject({ status: "disconnected", thumbnails: {}, busy: false });
+  });
+  it("reads output activity and OBS durations without changing scenes or locking controls", async () => {
+    await connect();
+    requests = [];
+    expect(await client.getOutputStatuses()).toEqual({
+      stream: { active: true, duration: 3_600_000, reconnecting: false },
+      recording: { active: false, duration: 0, paused: false },
+    });
+    streamOutput = { outputActive: true, outputDuration: 3_601_000, outputReconnecting: true };
+    recordOutput = { outputActive: true, outputDuration: 12_345, outputPaused: true };
+    expect(await client.getOutputStatuses()).toEqual({
+      stream: { active: true, duration: 3_601_000, reconnecting: true },
+      recording: { active: true, duration: 12_345, paused: true },
+    });
+    expect(requests).toEqual(["GetStreamStatus", "GetRecordStatus", "GetStreamStatus", "GetRecordStatus"]);
+    expect(client.getSnapshot()).toMatchObject({ busy: false, syncing: false, program: "Starting", preview: null });
+  });
+  it("isolates output read errors and recovers without a global scene error", async () => {
+    await connect();
+    rejectStreamStatus = true;
+    expect(await client.getOutputStatuses()).toEqual({
+      stream: null,
+      recording: { active: false, duration: 0, paused: false },
+    });
+    expect(client.getSnapshot().error).toBeNull();
+    rejectStreamStatus = false;
+    expect((await client.getOutputStatuses()).stream?.active).toBe(true);
+  });
+  it("discards output replies from a disconnected session", async () => {
+    await connect();
+    holdOutputStatus = true;
+    const pending = client.getOutputStatuses();
+    const rejected = expect(pending).rejects.toThrow("OBS session changed");
+    await vi.waitFor(() => expect(heldOutputReplies).toHaveLength(2));
+    client.disconnect();
+    heldOutputReplies.forEach((reply) => reply());
+    await rejected;
+    await expect(client.getOutputStatuses()).rejects.toThrow("OBS is not connected");
+  });
   it("authenticates, gates controls on Studio Mode, then selects only Preview", async () => {
     await connect();
     expect(client.getSnapshot()).toMatchObject({

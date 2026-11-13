@@ -8,11 +8,23 @@ import {
   liveMediaReady,
   liveMediaSource,
 } from "./scene-previews";
-import { readPreview, writePreview } from "./preview-cache";
+import { clearPreviews, readPreview, writePreview } from "./preview-cache";
 import { isSceneHidden, saveSceneHidden } from "./scene-visibility";
 
 export const MIN_TRANSITION_DURATION = 50;
 export const MAX_TRANSITION_DURATION = 20_000;
+
+export interface OutputStatus {
+  active: boolean;
+  duration: number;
+  paused?: boolean;
+  reconnecting?: boolean;
+}
+
+export interface OutputStatuses {
+  stream: OutputStatus | null;
+  recording: OutputStatus | null;
+}
 
 export interface ActiveMedia {
   name: string;
@@ -92,6 +104,28 @@ export class StudioClient {
     this.listeners.forEach((listener) => listener());
   }
   clearError = () => this.update({ error: null });
+  getOutputStatuses = async (): Promise<OutputStatuses> => {
+    const obs = this.obs;
+    if (!obs || this.state.status !== "connected")
+      throw new Error("OBS is not connected.");
+    const [stream, recording] = await Promise.allSettled([
+      obs.call("GetStreamStatus"),
+      obs.call("GetRecordStatus"),
+    ]);
+    if (this.obs !== obs) throw new Error("OBS session changed.");
+    return {
+      stream: stream.status === "fulfilled" ? {
+        active: stream.value.outputActive,
+        duration: stream.value.outputDuration,
+        reconnecting: stream.value.outputReconnecting,
+      } : null,
+      recording: recording.status === "fulfilled" ? {
+        active: recording.value.outputActive,
+        duration: recording.value.outputDuration,
+        paused: recording.value.outputPaused,
+      } : null,
+    };
+  };
   private fail(error: unknown) {
     this.update({
       error:
@@ -379,6 +413,22 @@ export class StudioClient {
       ),
     });
   };
+  resetPreviews = async () => {
+    const obs = this.obs;
+    if (!obs || this.state.status !== "connected" || this.state.busy || this.state.syncing || this.state.generating)
+      return;
+    const epoch = this.state.previewEpoch + 1;
+    const keys = [...this.cacheKeys.values()];
+    this.update({ busy: true, error: null, thumbnails: {}, previewReady: null, previewEpoch: epoch });
+    try {
+      await clearPreviews(keys);
+    } catch {
+      if (this.obs === obs && this.state.previewEpoch === epoch)
+        this.fail(new Error("Could not clear saved previews. Please try again."));
+    } finally {
+      if (this.obs === obs) this.update({ busy: false });
+    }
+  };
   generatePreviews = (scene?: string) =>
     this.command(async (obs) => {
       const scenes =
@@ -610,6 +660,21 @@ export class StudioClient {
       (obs) => obs.call("SetStudioModeEnabled", { studioModeEnabled: true }),
       false,
     );
+  setOutputActive = async (output: "stream" | "recording", active: boolean) => {
+    const session = this.obs;
+    let succeeded = false;
+    await this.command(async (obs) => {
+      const status = await obs.call(output === "stream" ? "GetStreamStatus" : "GetRecordStatus");
+      if (this.obs !== obs) return;
+      if (status.outputActive !== active) {
+        await obs.call(output === "stream"
+          ? active ? "StartStream" : "StopStream"
+          : active ? "StartRecord" : "StopRecord");
+      }
+      succeeded = true;
+    }, false);
+    return succeeded && this.obs === session;
+  };
   selectScene = (sceneName: string) =>
     this.command((obs) => obs.call("SetCurrentPreviewScene", { sceneName }));
   selectTransition = (transitionName: string) =>

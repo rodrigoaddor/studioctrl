@@ -30,13 +30,13 @@ export function TransitionControl() {
   return (
     <section
       aria-label="Transitions"
-      className="mx-auto grid h-full w-40 min-w-0 grid-rows-[auto_auto_auto] content-center gap-6 max-[900px]:h-auto max-[900px]:w-full max-[900px]:grid-cols-3 max-[900px]:grid-rows-1 max-[900px]:items-center max-[900px]:gap-3 max-[720px]:gap-2"
+      className="mx-auto grid h-full w-40 min-w-0 grid-rows-[auto_auto_auto] content-center gap-6 max-[900px]:h-auto max-[900px]:w-full sm:max-[900px]:grid-cols-3 sm:max-[900px]:grid-rows-1 max-sm:max-w-sm max-sm:grid-cols-2 max-sm:grid-rows-[auto_auto] max-[900px]:items-center max-[900px]:gap-3 max-[720px]:gap-2"
     >
-      <div className="max-[900px]:w-full max-[900px]:max-w-40 max-[900px]:self-center max-[900px]:[&>button]:h-auto max-[900px]:[&>button]:min-h-8 max-[900px]:[&>button]:px-1.5 max-[900px]:[&>button]:py-1 max-[900px]:[&>button]:whitespace-normal">
+      <div className="max-sm:col-start-1 max-sm:row-start-2 max-[900px]:w-full sm:max-[900px]:max-w-40 max-[900px]:self-center max-[900px]:[&>button]:h-auto max-[900px]:[&>button]:min-h-8 max-[900px]:[&>button]:px-1.5 max-[900px]:[&>button]:py-1 max-[900px]:[&>button]:whitespace-normal">
         <PreviewToggle />
       </div>
       <Button
-        className="h-14 w-full text-sm max-[900px]:max-w-40 max-[900px]:justify-self-center max-[900px]:gap-1 max-[900px]:px-1.5"
+        className="h-14 w-full text-sm max-sm:col-span-2 max-sm:row-start-1 sm:max-[900px]:max-w-40 max-[900px]:justify-self-center max-[900px]:gap-1 max-[900px]:px-1.5"
         disabled={unavailable}
         aria-disabled={disabled || unavailable}
         title={
@@ -51,7 +51,7 @@ export function TransitionControl() {
       >
         Transition <ArrowRight />
       </Button>
-      <div className="relative flex w-full min-w-0 flex-col gap-2 max-[900px]:max-w-40 max-[900px]:self-center max-[900px]:justify-self-end">
+      <div className="relative flex w-full min-w-0 flex-col gap-2 max-sm:col-start-2 max-sm:row-start-2 sm:max-[900px]:max-w-40 max-[900px]:self-center max-[900px]:justify-self-end">
         <DropdownMenu
           open={menuOpen}
           onOpenChange={(open) => {

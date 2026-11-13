@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import App from "../src/App";
@@ -32,6 +32,7 @@ function app(path: string) {
   );
 }
 beforeEach(() => {
+  vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
   localStorage.clear();
   HTMLDialogElement.prototype.showModal = function () {
     this.setAttribute("open", "");
@@ -44,6 +45,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 it("exits the active session and returns to connections", async () => {
@@ -68,7 +70,9 @@ it("exits the active session and returns to connections", async () => {
 it("redirects the connections route to the active studio", () => {
   render(app("/"));
   expect(screen.getByLabelText("Current route")).toHaveTextContent("/studio");
-  expect(screen.getByText("Connected to Main studio")).toBeInTheDocument();
+  expect(screen.getByTitle("Connected to Main studio")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Exit", exact: true }).parentElement)
+    .toContainElement(screen.getByTitle("Connected to Main studio"));
   expect(
     screen.queryByRole("button", { name: "Add connection" }),
   ).not.toBeInTheDocument();
@@ -81,8 +85,7 @@ it("keeps the brand link in the studio while connected", async () => {
   expect(screen.getByLabelText("Current route")).toHaveTextContent("/studio");
 });
 
-it("keeps the actions trigger stable during synchronization and blocks refresh", async () => {
-  const refresh = vi.spyOn(client, "refresh").mockResolvedValue(undefined);
+it("keeps the actions trigger stable during synchronization and blocks scene requests", async () => {
   const { rerender } = render(app("/studio"));
   const button = screen.getByRole("button", { name: "OBS actions" });
   const icon = button.querySelector("svg");
@@ -93,28 +96,22 @@ it("keeps the actions trigger stable during synchronization and blocks refresh",
   expect(icon).not.toHaveClass("animate-spin");
   button.focus();
   await userEvent.setup().keyboard("{ArrowDown}");
-  expect(
-    screen.getByRole("menuitem", { name: "Refresh OBS state" }),
-  ).toHaveAttribute("data-disabled");
+  expect(screen.queryByRole("menuitem", { name: /Refresh OBS state/i })).not.toBeInTheDocument();
+  screen.getByRole("menuitem", { name: "Scenes", exact: true }).focus();
+  await userEvent.setup().keyboard("{ArrowRight}");
   expect(
     screen.getByRole("menuitem", { name: "Generate Previews" }),
   ).toHaveAttribute("data-disabled");
-  expect(refresh).not.toHaveBeenCalled();
-});
-it("refreshes from the actions dropdown", async () => {
-  const refresh = vi.spyOn(client, "refresh").mockResolvedValue(undefined);
-  render(app("/studio"));
-  screen.getByRole("button", { name: "OBS actions" }).focus();
-  const user = userEvent.setup();
-  await user.keyboard("{ArrowDown}");
-  await user.click(screen.getByRole("menuitem", { name: "Refresh OBS state" }));
-  expect(refresh).toHaveBeenCalledOnce();
+  expect(screen.getByRole("menuitem", { name: "Reset Previews" })).toHaveAttribute("data-disabled");
 });
 
 it("toggles hidden scene visibility from OBS actions", async () => {
   const toggle = vi.spyOn(client, "setShowHiddenScenes");
   render(app("/studio"));
   await userEvent.setup().click(screen.getByRole("button", { name: "OBS actions" }));
+  expect(screen.queryByRole("menuitemcheckbox", { name: "Show hidden scenes" })).not.toBeInTheDocument();
+  screen.getByRole("menuitem", { name: "Scenes", exact: true }).focus();
+  await userEvent.setup().keyboard("{ArrowRight}");
   const item = screen.getByRole("menuitemcheckbox", { name: "Show hidden scenes" });
   expect(item).toHaveAttribute("aria-checked", "false");
   await userEvent.setup().click(item);
@@ -207,7 +204,7 @@ it.each(["disconnected", "connecting"] as const)(
     await user.click(screen.getByRole("button", { name: "App actions" }));
     expect(screen.getAllByRole("menuitem")).toHaveLength(1);
     expect(screen.queryByRole("menuitemcheckbox")).not.toBeInTheDocument();
-    expect(screen.queryByText("Connected to Main studio")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Connected to Main studio")).not.toBeInTheDocument();
     await user.click(screen.getByRole("menuitem", { name: "Fullscreen", exact: true }));
     expect(request).toHaveBeenCalledOnce();
     await user.click(screen.getByRole("button", { name: "App actions" }));
@@ -215,3 +212,116 @@ it.each(["disconnected", "connecting"] as const)(
     expect(exit).toHaveBeenCalledOnce();
   },
 );
+
+
+it.each(["stream", "recording"] as const)("starts inactive %s from the menu", async (output) => {
+  vi.spyOn(client, "getOutputStatuses").mockResolvedValue({
+    stream: { active: false, duration: 0 }, recording: { active: false, duration: 0 },
+  });
+  const start = vi.spyOn(client, "setOutputActive").mockResolvedValue(true);
+  render(app("/studio"));
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "OBS actions" }));
+  expect(within(screen.getByRole("menu")).getByText("Connected to Main studio")).toBeInTheDocument();
+  await user.click(await screen.findByRole("menuitem", { name: output === "stream" ? "Start streaming" : "Start recording" }));
+  expect(start).toHaveBeenCalledExactlyOnceWith(output, true);
+  expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+});
+
+it.each(["stream", "recording"] as const)("confirms stopping %s and supports cancellation", async (output) => {
+  vi.spyOn(client, "getOutputStatuses").mockResolvedValue({
+    stream: { active: true, duration: 65_000 }, recording: { active: true, duration: 125_000 },
+  });
+  const stop = vi.spyOn(client, "setOutputActive").mockResolvedValue(true);
+  render(app("/studio"));
+  const user = userEvent.setup();
+  const label = output === "stream" ? "streaming" : "recording";
+  async function openStop() {
+    await user.click(screen.getByRole("button", { name: "OBS actions" }));
+    await user.click(await screen.findByRole("menuitem", { name: output === "stream" ? "Streaming 00:01:05" : "Recording 00:02:05" }));
+  }
+  await openStop();
+  expect(screen.getByRole("alertdialog", { name: `Stop ${label}?` })).toBeInTheDocument();
+  expect(stop).not.toHaveBeenCalled();
+  expect(screen.getByRole("button", { name: "Cancel", exact: true })).toHaveFocus();
+  await user.click(screen.getByRole("button", { name: "Cancel", exact: true }));
+  expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  expect(stop).not.toHaveBeenCalled();
+  expect(screen.getByRole("button", { name: "OBS actions" })).toHaveFocus();
+  await openStop();
+  await user.click(screen.getByRole("button", { name: `Stop ${label}`, exact: true }));
+  expect(stop).toHaveBeenCalledExactlyOnceWith(output, false);
+  expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+});
+
+it("keeps stop confirmation open on failure and discards it after a session change", async () => {
+  vi.spyOn(client, "getOutputStatuses").mockResolvedValue({
+    stream: { active: true, duration: 1000 }, recording: null,
+  });
+  const stop = vi.spyOn(client, "setOutputActive").mockResolvedValue(false);
+  const view = render(app("/studio"));
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "OBS actions" }));
+  expect(await screen.findByRole("menuitem", { name: "Recording unavailable" })).toHaveAttribute("data-disabled");
+  await user.click(screen.getByRole("menuitem", { name: "Streaming 00:00:01" }));
+  await user.click(screen.getByRole("button", { name: "Stop streaming", exact: true }));
+  expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+  expect(screen.getByRole("alert")).toHaveTextContent("Could not stop streaming");
+  vi.mocked(useStudio).mockReturnValue({ client, ...connected, profile: { ...connected.profile, id: "other", name: "Other OBS" } });
+  view.rerender(app("/studio"));
+  expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  expect(stop).toHaveBeenCalledTimes(1);
+});
+
+it("blocks repeated stop requests while waiting for OBS", async () => {
+  vi.spyOn(client, "getOutputStatuses").mockResolvedValue({
+    stream: { active: true, duration: 1000 }, recording: { active: false, duration: 0 },
+  });
+  let resolve!: (success: boolean) => void;
+  const stop = vi.spyOn(client, "setOutputActive").mockImplementation(() => new Promise((done) => { resolve = done; }));
+  render(app("/studio"));
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "OBS actions" }));
+  await user.click(await screen.findByRole("menuitem", { name: "Streaming 00:00:01" }));
+  await user.click(screen.getByRole("button", { name: "Stop streaming", exact: true }));
+  const stopping = screen.getByRole("button", { name: "Stopping…" });
+  expect(stopping).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Cancel", exact: true })).toBeDisabled();
+  await user.click(stopping);
+  await user.keyboard("{Escape}");
+  expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+  expect(stop).toHaveBeenCalledExactlyOnceWith("stream", false);
+  await act(async () => { resolve(true); });
+  expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+});
+
+it("resets previews from the Scenes submenu", async () => {
+  const reset = vi.spyOn(client, "resetPreviews").mockResolvedValue(undefined);
+  render(app("/studio"));
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "OBS actions" }));
+  screen.getByRole("menuitem", { name: "Scenes", exact: true }).focus();
+  await user.keyboard("{ArrowRight}");
+  await user.click(screen.getByRole("menuitem", { name: "Reset Previews" }));
+  expect(reset).toHaveBeenCalledOnce();
+});
+
+it("groups output controls without a visible heading and generates previews from the Scenes submenu", async () => {
+  vi.mocked(useStudio).mockReturnValue({ client, ...connected, studio: true });
+  vi.spyOn(client, "getOutputStatuses").mockResolvedValue({
+    stream: { active: false, duration: 0 }, recording: { active: false, duration: 0 },
+  });
+  const generate = vi.spyOn(client, "generatePreviews").mockResolvedValue(undefined);
+  render(app("/studio"));
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "OBS actions" }));
+  const status = screen.getByRole("group", { name: "Status" });
+  expect(screen.queryByText("Status", { exact: true })).not.toBeInTheDocument();
+  expect(await within(status).findByRole("menuitem", { name: "Start streaming" })).toBeInTheDocument();
+  expect(within(status).getByRole("menuitem", { name: "Start recording" })).toBeInTheDocument();
+  expect(screen.queryByRole("menuitem", { name: "Generate Previews" })).not.toBeInTheDocument();
+  screen.getByRole("menuitem", { name: "Scenes", exact: true }).focus();
+  await user.keyboard("{ArrowRight}");
+  await user.click(screen.getByRole("menuitem", { name: "Generate Previews" }));
+  expect(generate).toHaveBeenCalledOnce();
+});
