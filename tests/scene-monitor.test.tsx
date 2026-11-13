@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { act, cleanup, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SceneMonitor } from "../src/components/scene-monitor";
 import { useStudio } from "../src/context";
@@ -33,6 +33,38 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.useRealTimers();
 });
+it.each(["preview", "program"] as const)("anchors %s settings to the last overlay column when the scene-name cell is hidden", (kind) => {
+  render(<SceneMonitor kind={kind} sceneName="Camera" />);
+  const settings = screen.getByRole("button", { name: `${kind === "preview" ? "Preview" : "Program"} settings` });
+  expect(settings.parentElement?.querySelector('[title="Camera"]')).toHaveClass("sm:hidden");
+  expect(settings).toHaveClass("col-start-3");
+});
+
+it.each(["preview", "program"] as const)("warns when OBS stops streaming in the %s remote monitor without restarting playback", (kind) => {
+  localStorage.setItem(monitorSettingsKey("studio", kind), "remote");
+  remote.saveRemoteSettings(`studio:${kind}`, { ...remote.emptyRemoteSettings, url: "https://media.example/live" });
+  const start = vi.spyOn(remote, "startRemotePreview").mockReturnValue(vi.fn());
+  const { rerender } = render(<SceneMonitor kind={kind} sceneName="Camera" />);
+  expect(screen.queryByText("OBS is not streaming")).not.toBeInTheDocument();
+  rerender(<SceneMonitor kind={kind} sceneName="Camera" streaming={false} />);
+  expect(screen.getByText("OBS is not streaming")).toBeInTheDocument();
+  expect(screen.getByText("Connecting WebRTC…")).toBeInTheDocument();
+  fireEvent.playing(screen.getByLabelText("Remote WebRTC stream"));
+  expect(screen.queryByText("Connecting WebRTC…")).not.toBeInTheDocument();
+  expect(screen.getByText("OBS is not streaming")).toBeInTheDocument();
+  rerender(<SceneMonitor kind={kind} sceneName="Camera" streaming />);
+  expect(screen.queryByText("OBS is not streaming")).not.toBeInTheDocument();
+  rerender(<SceneMonitor kind={kind} sceneName="Camera" streaming={false} />);
+  expect(screen.getByText("OBS is not streaming")).toBeInTheDocument();
+  expect(start).toHaveBeenCalledOnce();
+});
+
+it.each(["none", "obs"])("does not show a remote streaming warning in %s mode", (mode) => {
+  localStorage.setItem(monitorSettingsKey("studio", "preview"), mode);
+  render(<SceneMonitor kind="preview" sceneName="Camera" streaming={false} />);
+  expect(screen.queryByText("OBS is not streaming")).not.toBeInTheDocument();
+});
+
 it("offers independent saved modes and a configurable Remote Preview option", async () => {
   const user = userEvent.setup();
   const { unmount } = render(

@@ -239,7 +239,7 @@ export default function App() {
             )
           }
         />
-        <Route path="/studio" element={<Studio />} />
+        <Route path="/studio" element={<Studio streaming={outputs?.stream?.active} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </div>

@@ -18,9 +18,11 @@ import {
 export function SceneMonitor({
   kind,
   sceneName,
+  streaming,
 }: {
   kind: "preview" | "program";
   sceneName: string | null;
+  streaming?: boolean;
 }) {
   const { profile, status, studio, monitorFade } = useStudio();
   const [finishedFade, setFinishedFade] = useState<typeof monitorFade>(null);
@@ -81,6 +83,7 @@ export function SceneMonitor({
       {mode === "remote" && status === "connected" && studio && <RemotePreview
         key={`player:${settingsKey}`}
         settings={remoteSettings}
+        streaming={streaming}
         onImageChange={setHasImage}
       />}
       {remoteOpen && <RemotePreviewDialog key={`dialog:${settingsKey}`} settingsKey={settingsKey} label={label}
@@ -120,7 +123,7 @@ export function SceneMonitor({
               size="icon-lg"
               ref={settingsButton}
               aria-label={`${label} settings`}
-              className="justify-self-end border-0 text-white shadow-none hover:bg-white/15 hover:text-white focus-visible:bg-white/15 focus-visible:text-white focus-visible:ring-0 aria-expanded:bg-white/15 aria-expanded:text-white dark:hover:bg-white/15"
+              className="col-start-3 justify-self-end border-0 text-white shadow-none hover:bg-white/15 hover:text-white focus-visible:bg-white/15 focus-visible:text-white focus-visible:ring-0 aria-expanded:bg-white/15 aria-expanded:text-white dark:hover:bg-white/15"
             >
               <Settings />
             </Button>
@@ -210,7 +213,7 @@ function MonitorPicture({ kind, sceneName, mode, onImageChange }: {
       {showingCached && (
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-linear-to-t from-black/50 to-transparent"
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-1/4 bg-linear-to-t from-black/90 via-black/60 via-40% to-transparent"
         />
       )}
       {!hasImage && (
@@ -226,7 +229,7 @@ function MonitorPicture({ kind, sceneName, mode, onImageChange }: {
       {(showingCached || phase === "loading" || phase === "error") && (
         <span
           role="status"
-          className="absolute inset-x-2 bottom-2 text-center text-[11px] text-white/70"
+          className="absolute inset-x-2 bottom-1 text-center text-[11px] text-white/70"
         >
           {showingCached
             ? "Video Preview"

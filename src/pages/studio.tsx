@@ -9,7 +9,7 @@ import { Button } from "../components/ui/button";
 import { ScrollArea, ScrollBar } from "../components/ui/scroll-area";
 import { useStudio } from "../context";
 
-export function Studio() {
+export function Studio({ streaming }: { streaming?: boolean }) {
   const {
     client,
     status,
@@ -73,12 +73,12 @@ export function Studio() {
             aria-label="Current scenes"
             className="mb-6 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-4 sm:max-[900px]:grid-cols-2 max-sm:grid-cols-1 max-[720px]:gap-3"
           >
-            <SceneMonitor kind="preview" sceneName={preview} />
+            <SceneMonitor kind="preview" sceneName={preview} streaming={streaming} />
             <div className="self-stretch max-[900px]:col-span-full sm:max-[900px]:row-start-2 max-sm:row-start-3">
               <TransitionControl />
             </div>
             <div className="min-w-0 sm:max-[900px]:col-start-2 sm:max-[900px]:row-start-1 max-sm:row-start-2">
-              <SceneMonitor kind="program" sceneName={program} />
+              <SceneMonitor kind="program" sceneName={program} streaming={streaming} />
             </div>
           </section>
           <section aria-label="Scenes">

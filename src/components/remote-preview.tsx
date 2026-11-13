@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Dialog } from "radix-ui";
+import { TriangleAlert } from "lucide-react";
 import { readRemoteSettings, saveRemoteSettings, startRemotePreview, type RemoteSettings } from "../lib/remote-preview";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -46,8 +47,8 @@ export function RemotePreviewDialog({ settingsKey, label, onSave, onClose }: {
   </Dialog.Root>;
 }
 
-export function RemotePreview({ settings, onImageChange }: {
-  settings: RemoteSettings; onImageChange: (live: boolean) => void;
+export function RemotePreview({ settings, streaming, onImageChange }: {
+  settings: RemoteSettings; streaming?: boolean; onImageChange: (live: boolean) => void;
 }) {
   const video = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState("");
@@ -65,9 +66,19 @@ export function RemotePreview({ settings, onImageChange }: {
   }, [settings, attempt, onImageChange]);
   return <>
     <video ref={video} autoPlay muted playsInline aria-label="Remote WebRTC stream" className="absolute inset-0 size-full object-contain" onPlaying={() => { setLive(true); onImageChange(true); }} />
-    {!live && <div role="status" className="absolute inset-x-3 bottom-3 flex flex-col items-center gap-2 text-center text-xs text-white/80">
-      {error || "Connecting WebRTC…"}
-      {error && <Button variant="outline" size="sm" onClick={() => setAttempt((value) => value + 1)}>Retry</Button>}
+    {streaming === false && <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-x-0 bottom-0 h-1/4 bg-linear-to-t from-black/90 via-black/60 via-40% to-transparent"
+    />}
+    {(!live || streaming === false) && <div role="status" className="absolute inset-x-3 bottom-1 flex flex-col items-center gap-2 text-center text-xs text-white/80">
+      {!live && <>
+        {error || "Connecting WebRTC…"}
+        {error && <Button variant="outline" size="sm" onClick={() => setAttempt((value) => value + 1)}>Retry</Button>}
+      </>}
+      {streaming === false && <span className="flex items-center justify-center gap-1.5 text-amber-300">
+        <TriangleAlert aria-hidden="true" className="size-3.5 shrink-0" />
+        OBS is not streaming
+      </span>}
     </div>}
   </>;
 }
