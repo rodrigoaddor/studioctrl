@@ -8,8 +8,9 @@ import { StudioClient, type ActiveMedia } from "../src/lib/obs";
 
 vi.mock("../src/context", () => ({ useStudio: vi.fn() }));
 const client = new StudioClient();
-const clip: ActiveMedia = { name: "Clip", preview: false, program: true, state: "OBS_MEDIA_STATE_PLAYING", duration: 60000, cursor: 5000 };
+const clip: ActiveMedia = { name: "Clip", live: false, preview: false, program: true, state: "OBS_MEDIA_STATE_PLAYING", duration: 60000, cursor: 5000 };
 beforeEach(() => {
+  localStorage.clear();
   vi.useFakeTimers();
   vi.stubGlobal("ResizeObserver", class {
     observe() {}
@@ -37,6 +38,48 @@ const mount = async () => {
   await act(async () => {});
   return result;
 };
+
+it("collapses both media groups, keeps polling, and persists collapse and expansion across mounts", async () => {
+  let view = await mount();
+  let toggle = screen.getByRole("button", { name: "Active media" });
+  expect(toggle).toHaveAttribute("aria-expanded", "true");
+  fireEvent.click(toggle);
+  expect(toggle).toHaveAttribute("aria-expanded", "false");
+  expect(document.getElementById(toggle.getAttribute("aria-controls")!)).not.toBeVisible();
+  expect(screen.queryByRole("region", { name: "Preview media" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("region", { name: "Program media" })).not.toBeInTheDocument();
+  vi.mocked(client.getActiveMedia).mockResolvedValue([{ ...clip, cursor: 12000 }]);
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+  expect(client.getActiveMedia).toHaveBeenCalledTimes(2);
+  expect(client.seekMedia).not.toHaveBeenCalled();
+  expect(client.setMediaPlayback).not.toHaveBeenCalled();
+  view.unmount();
+  view = await mount();
+  toggle = screen.getByRole("button", { name: "Active media" });
+  expect(toggle).toHaveAttribute("aria-expanded", "false");
+  fireEvent.click(toggle);
+  expect(screen.getByText("0:12 / 1:00")).toBeVisible();
+  view.unmount();
+  await mount();
+  expect(screen.getByRole("button", { name: "Active media" })).toHaveAttribute("aria-expanded", "true");
+  expect(screen.getByRole("slider", { name: "Seek Clip" })).toBeVisible();
+});
+
+it("defaults to expanded for malformed preferences and works when storage is unavailable", async () => {
+  localStorage.setItem("studioctrl.active-media.collapsed.v1", "invalid");
+  const view = await mount();
+  expect(screen.getByRole("button", { name: "Active media" })).toHaveAttribute("aria-expanded", "true");
+  view.unmount();
+  vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("Blocked"); });
+  vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("Blocked"); });
+  await mount();
+  const toggle = screen.getByRole("button", { name: "Active media" });
+  expect(toggle).toHaveAttribute("aria-expanded", "true");
+  fireEvent.click(toggle);
+  expect(toggle).toHaveAttribute("aria-expanded", "false");
+  fireEvent.click(toggle);
+  expect(screen.getByRole("slider", { name: "Seek Clip" })).toBeVisible();
+});
 
 function scrub(slider: HTMLElement, value: number) {
   const root = slider.closest<HTMLElement>('[data-slot="slider"]')!;
@@ -339,4 +382,27 @@ it("keeps playback controls available without a duration and guards busy or stal
   await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
   expect(pause).toBeDisabled();
   expect(stop).toBeDisabled();
+});
+
+it("hides entire live-source rows and the empty media area, while retaining file controls", async () => {
+  const live = { ...clip, name: "Live camera", live: true, preview: true, duration: -9223372036854776, cursor: 45 };
+  vi.mocked(client.getActiveMedia).mockResolvedValue([live, clip]);
+  await mount();
+  expect(screen.queryByText("Live camera")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Pause Live camera" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Stop Live camera" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("slider", { name: "Seek Live camera" })).not.toBeInTheDocument();
+  expect(screen.getByRole("slider", { name: "Seek Clip" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Pause Clip" })).toBeInTheDocument();
+  expect(within(screen.getByRole("region", { name: "Preview media" })).getByText("No active media in Preview.")).toBeInTheDocument();
+  vi.mocked(client.getActiveMedia).mockResolvedValue([{ ...live, state: "OBS_MEDIA_STATE_PAUSED" }]);
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+  expect(screen.queryByRole("region", { name: "Active media" })).not.toBeInTheDocument();
+  expect(screen.queryByText("Live camera")).not.toBeInTheDocument();
+  expect(client.setMediaPlayback).not.toHaveBeenCalled();
+  expect(client.seekMedia).not.toHaveBeenCalled();
+  vi.mocked(client.getActiveMedia).mockResolvedValue([{ ...clip, name: "Live camera", preview: true }]);
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+  expect(screen.getAllByRole("slider", { name: "Seek Live camera" })).toHaveLength(2);
+  expect(screen.getAllByRole("button", { name: "Pause Live camera" })).toHaveLength(2);
 });

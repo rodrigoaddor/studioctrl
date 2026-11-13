@@ -33,14 +33,13 @@ type MediaStatus = {
 };
 
 // A missing duration alone can also mean a file is stopped or failed to load.
-// Require both active playback and OBS's explicit non-local Media Source setting.
-export async function liveMediaReady(
+// Require OBS's explicit non-local Media Source setting; readiness also requires playback.
+export async function liveMediaSource(
   obs: OBSWebSocket,
   inputName: string,
   status: MediaStatus,
 ) {
   if (
-    status.mediaState !== "OBS_MEDIA_STATE_PLAYING" ||
     (status.mediaDuration !== null &&
       Number.isFinite(status.mediaDuration) &&
       status.mediaDuration > 0)
@@ -56,6 +55,10 @@ export async function liveMediaReady(
   } catch {
     return false;
   }
+}
+
+export async function liveMediaReady(obs: OBSWebSocket, inputName: string, status: MediaStatus) {
+  return status.mediaState === "OBS_MEDIA_STATE_PLAYING" && await liveMediaSource(obs, inputName, status);
 }
 
 // Native video-device input kinds; source names are user-editable.

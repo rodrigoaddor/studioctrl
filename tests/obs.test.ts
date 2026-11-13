@@ -462,7 +462,7 @@ it("discovers only active media, seeks in milliseconds, and keeps scene selectio
   await connect();
   await client.enableStudio();
   expect(await client.getActiveMedia()).toEqual([
-    { name: "Clip", preview: false, program: true, state: "OBS_MEDIA_STATE_PLAYING", duration: 60000, cursor: 5000 },
+    { name: "Clip", live: false, preview: false, program: true, state: "OBS_MEDIA_STATE_PLAYING", duration: 60000, cursor: 5000 },
   ]);
   expect(requests.filter((r) => r === "GetMediaInputStatus")).toHaveLength(1);
   expect(await client.seekMedia("Clip", 25000)).toBe(true);
@@ -521,12 +521,12 @@ it("finds Preview media through enabled nested scenes/groups and deduplicates sh
   await connect();
   await client.enableStudio();
   expect(await client.getActiveMedia()).toEqual([
-    { name: "Clip", preview: true, program: true, state: mediaState, duration: 60000, cursor: 5000 },
+    { name: "Clip", live: false, preview: true, program: true, state: mediaState, duration: 60000, cursor: 5000 },
   ]);
   expect(requests.filter((r) => r === "GetMediaInputStatus")).toHaveLength(1);
   mediaActive = false;
   expect(await client.getActiveMedia()).toEqual([
-    { name: "Clip", preview: true, program: false, state: mediaState, duration: 60000, cursor: 5000 },
+    { name: "Clip", live: false, preview: true, program: false, state: mediaState, duration: 60000, cursor: 5000 },
   ]);
   await client.seekMedia("Clip", 30000);
   expect(mediaCursor).toBe(30000);
@@ -834,4 +834,19 @@ it("persists hidden scenes across reconnects and isolates collections", async ()
   } finally {
     vi.unstubAllGlobals();
   }
+});
+
+it("classifies live media for controls even while paused or stopped, while retaining file controls", async () => {
+  mediaInputSettings.Clip = { inputKind: "ffmpeg_source", inputSettings: { is_local_file: false } };
+  mediaDuration = -9223372036854776;
+  await connect(); await client.enableStudio();
+  for (const state of ["OBS_MEDIA_STATE_PLAYING", "OBS_MEDIA_STATE_PAUSED", "OBS_MEDIA_STATE_STOPPED"]) {
+    mediaState = state;
+    expect((await client.getActiveMedia())[0]).toMatchObject({ name: "Clip", live: true });
+  }
+  mediaDuration = 18000;
+  expect((await client.getActiveMedia())[0].live).toBe(false);
+  mediaDuration = null;
+  mediaInputSettings.Clip.inputSettings.is_local_file = true;
+  expect((await client.getActiveMedia())[0].live).toBe(false);
 });

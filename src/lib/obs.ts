@@ -6,6 +6,7 @@ import {
   usablePreview,
   representativeMediaReady,
   liveMediaReady,
+  liveMediaSource,
 } from "./scene-previews";
 import { readPreview, writePreview } from "./preview-cache";
 import { isSceneHidden, saveSceneHidden } from "./scene-visibility";
@@ -15,6 +16,7 @@ export const MAX_TRANSITION_DURATION = 20_000;
 
 export interface ActiveMedia {
   name: string;
+  live: boolean;
   preview: boolean;
   program: boolean;
   state: string;
@@ -510,7 +512,8 @@ export class StudioClient {
       const preview = previewSources.has(name);
       if (!videoActive && !preview) continue;
       const status = await obs.call("GetMediaInputStatus", { inputName: name });
-      media.push({ name, preview, program: videoActive, state: status.mediaState, duration: status.mediaDuration, cursor: status.mediaCursor });
+      const live = await liveMediaSource(obs, name, status);
+      media.push({ name, live, preview, program: videoActive, state: status.mediaState, duration: status.mediaDuration, cursor: status.mediaCursor });
     }
     if (this.obs !== obs || this.state.previewEpoch !== epoch || revision !== this.revision || !this.state.studio)
       return [];

@@ -2,9 +2,11 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useStudio } from "../context";
 import type { ActiveMedia } from "../lib/obs";
 import { ErrorNotice } from "./error-notice";
-import { Pause, Play, Square } from "lucide-react";
+import { ChevronDown, ChevronRight, Pause, Play, Square } from "lucide-react";
 import { Button } from "./ui/button";
 import { Slider } from "./ui/slider";
+
+const collapsedStorageKey = "studioctrl.active-media.collapsed.v1";
 
 function time(milliseconds: number | null) {
   if (milliseconds === null || !Number.isFinite(milliseconds) || milliseconds < 0) return "--:--";
@@ -142,6 +144,23 @@ function MediaSeeker({ media, stale, optimisticCursor, onSeek }: {
 
 export function MediaSeekers() {
   const { client } = useStudio();
+  const contentId = useId();
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(collapsedStorageKey) === "true";
+    } catch {
+      return false;
+    }
+  });
+  const toggleCollapsed = () => {
+    const next = !collapsed;
+    setCollapsed(next);
+    try {
+      localStorage.setItem(collapsedStorageKey, String(next));
+    } catch {
+      // Keep the toggle usable when browser storage is unavailable.
+    }
+  };
   const [media, setMedia] = useState<ActiveMedia[]>([]);
   const [error, setError] = useState(false);
   const [errorDismissed, setErrorDismissed] = useState(false);
@@ -200,16 +219,29 @@ export function MediaSeekers() {
     void poll();
     return () => { cancelled = true; clearTimeout(timer); tracker.pending.clear(); tracker.revision++; };
   }, [client]);
-  if (!media.length && !error) return null;
+  const controllableMedia = media.filter((source) => !source.live);
+  if (!controllableMedia.length && !error) return null;
   return (
     <>
     {error && !errorDismissed && <ErrorNotice message="Unable to load active media. Retrying…" onDismiss={() => setErrorDismissed(true)} />}
-    {!!media.length && <section aria-label="Active media" className="mt-6 grid gap-3">
-      <h2 className="font-heading text-sm font-medium">Active media</h2>
-      <div className="grid grid-cols-1 items-start gap-6 min-[901px]:grid-cols-2">
-        {(["preview", "program"] as const).map((kind) => {
+    {!!controllableMedia.length && <section aria-label="Active media" className="mt-6 grid gap-3">
+      <h2>
+        <Button
+          type="button"
+          variant="ghost"
+          className="w-full justify-start gap-2 bg-transparent px-0 font-heading text-sm hover:bg-transparent aria-expanded:bg-transparent dark:hover:bg-transparent"
+          aria-expanded={!collapsed}
+          aria-controls={contentId}
+          onClick={toggleCollapsed}
+        >
+          {collapsed ? <ChevronRight aria-hidden="true" /> : <ChevronDown aria-hidden="true" />}
+          Active media
+        </Button>
+      </h2>
+      <div id={contentId} hidden={collapsed} className="grid grid-cols-1 items-start gap-6 min-[901px]:grid-cols-2">
+        {!collapsed && (["preview", "program"] as const).map((kind) => {
           const label = kind === "preview" ? "Preview" : "Program";
-          const sources = media.filter((source) => source[kind]);
+          const sources = controllableMedia.filter((source) => source[kind]);
           return (
             <section key={kind} aria-label={`${label} media`} className="grid min-w-0 gap-3">
               <h3 className={`font-heading text-sm font-medium ${kind === "preview" ? "text-preview" : "text-program"}`}>{label}</h3>
