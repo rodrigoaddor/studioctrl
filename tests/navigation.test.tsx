@@ -192,3 +192,26 @@ it("shows dismissible feedback when fullscreen is rejected", async () => {
   await user.click(screen.getByRole("button", { name: "Dismiss error" }));
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 });
+
+it.each(["disconnected", "connecting"] as const)(
+  "offers fullscreen without OBS actions while %s on connections",
+  async (status) => {
+    const { request, exit } = mockFullscreen();
+    vi.mocked(useStudio).mockReturnValue({
+      client,
+      ...client.getSnapshot(),
+      status,
+    });
+    render(app("/"));
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "App actions" }));
+    expect(screen.getAllByRole("menuitem")).toHaveLength(1);
+    expect(screen.queryByRole("menuitemcheckbox")).not.toBeInTheDocument();
+    expect(screen.queryByText("Connected to Main studio")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("menuitem", { name: "Fullscreen", exact: true }));
+    expect(request).toHaveBeenCalledOnce();
+    await user.click(screen.getByRole("button", { name: "App actions" }));
+    await user.click(screen.getByRole("menuitem", { name: "Exit fullscreen" }));
+    expect(exit).toHaveBeenCalledOnce();
+  },
+);

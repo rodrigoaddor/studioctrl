@@ -85,32 +85,34 @@ export default function App() {
         </Link>
         <div className="flex min-w-0 max-w-full items-center justify-self-end gap-3 max-[720px]:gap-2">
           {status === "connected" && (
-            <>
-              <span className="flex min-w-0 items-center gap-1.5 text-xs text-foreground max-[720px]:text-[11px]">
-                <Circle size={7} fill="currentColor" className="shrink-0" />
-                <span
-                  className="truncate max-[600px]:sr-only"
-                  title={`Connected to ${profile?.name}`}
-                >
-                  Connected to {profile?.name}
-                </span>
+            <span className="flex min-w-0 items-center gap-1.5 text-xs text-foreground max-[720px]:text-[11px]">
+              <Circle size={7} fill="currentColor" className="shrink-0" />
+              <span
+                className="truncate max-[600px]:sr-only"
+                title={`Connected to ${profile?.name}`}
+              >
+                Connected to {profile?.name}
               </span>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="shrink-0"
-                    aria-label="OBS actions"
-                    title="OBS actions"
-                  >
-                    <Ellipsis />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="end"
-                  className="w-48 whitespace-nowrap"
-                >
+            </span>
+          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="shrink-0"
+                aria-label={status === "connected" ? "OBS actions" : "App actions"}
+                title={status === "connected" ? "OBS actions" : "App actions"}
+              >
+                <Ellipsis />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="w-48 whitespace-nowrap"
+            >
+              {status === "connected" && (
+                <>
                   <DropdownMenuItem
                     disabled={syncing || busy || !!generating}
                     onSelect={() => void client.refresh()}
@@ -131,22 +133,22 @@ export default function App() {
                     <EyeOff /> Show hidden scenes
                   </DropdownMenuCheckboxItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    disabled={
-                      fullscreen
-                        ? typeof document.exitFullscreen !== "function"
-                        : !document.fullscreenEnabled ||
-                          typeof document.documentElement.requestFullscreen !== "function"
-                    }
-                    onSelect={() => void toggleFullscreen()}
-                  >
-                    {fullscreen ? <Minimize /> : <Maximize />}
-                    {fullscreen ? "Exit fullscreen" : "Fullscreen"}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </>
-          )}
+                </>
+              )}
+              <DropdownMenuItem
+                disabled={
+                  fullscreen
+                    ? typeof document.exitFullscreen !== "function"
+                    : !document.fullscreenEnabled ||
+                      typeof document.documentElement.requestFullscreen !== "function"
+                }
+                onSelect={() => void toggleFullscreen()}
+              >
+                {fullscreen ? <Minimize /> : <Maximize />}
+                {fullscreen ? "Exit fullscreen" : "Fullscreen"}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
       {generating && (

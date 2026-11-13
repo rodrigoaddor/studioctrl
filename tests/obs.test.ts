@@ -795,11 +795,46 @@ it("naturally caches a live feed and restores fallback eligibility when the feed
   expect(client.getSnapshot().thumbnails.Camera).toBeTruthy();
 });
 
+it.each([false, true])("skips hidden scenes in batch generation with showHiddenScenes=%s", async (showHiddenScenes) => {
+  await connect();
+  await client.enableStudio();
+  client.setSceneHidden("Slides", true);
+  client.setShowHiddenScenes(showHiddenScenes);
+  const capture = vi.spyOn(client, "getScreenshot");
+  const totals: number[] = [];
+  const unsubscribe = client.subscribe(() => {
+    const progress = client.getSnapshot().generating;
+    if (progress) totals.push(progress.total);
+  });
+  const original = preview;
+  await client.generatePreviews();
+  unsubscribe();
+  expect(capture.mock.calls.map(([scene]) => scene)).toEqual(["Starting", "Camera"]);
+  expect(client.getSnapshot().thumbnails.Slides).toBeUndefined();
+  expect(totals.length).toBeGreaterThan(0);
+  expect(totals.every((total) => total === 2)).toBe(true);
+  expect(preview).toBe(original);
+});
+
+it("does not visit scenes when every scene is hidden", async () => {
+  await connect();
+  await client.enableStudio();
+  for (const scene of client.getSnapshot().scenes) client.setSceneHidden(scene, true);
+  requests = [];
+  await client.generatePreviews();
+  expect(requests).not.toContain("SetCurrentPreviewScene");
+  expect(requests).not.toContain("GetSourceScreenshot");
+  expect(requests).not.toContain("TriggerMediaInputAction");
+  expect(requests).not.toContain("SetMediaInputCursor");
+  expect(client.getSnapshot().generating).toBeNull();
+});
+
 it("generates a thumbnail only for the requested scene and restores Preview", async () => {
   await connect();
   await client.enableStudio();
   const original = preview;
   requests = [];
+  client.setSceneHidden("Starting", true);
   await client.generatePreviews("Starting");
   expect(client.getSnapshot().thumbnails.Starting).toBeTruthy();
   expect(client.getSnapshot().thumbnails.Camera).toBeUndefined();

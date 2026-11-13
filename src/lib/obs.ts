@@ -367,7 +367,7 @@ export class StudioClient {
     this.command(async (obs) => {
       const scenes =
         scene === undefined
-          ? [...this.state.scenes]
+          ? this.state.scenes.filter((name) => !this.state.hiddenScenes.includes(name))
           : this.state.scenes.filter((name) => name === scene);
       if (!scenes.length) return;
       const epoch = this.state.previewEpoch;
