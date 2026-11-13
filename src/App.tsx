@@ -1,6 +1,7 @@
-import { Cast, ChevronLeft, Circle, RefreshCw } from "lucide-react";
+import { ChevronLeft, Circle, RefreshCw } from "lucide-react";
 import { Link, Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { ErrorNotice } from "./components/error-notice";
+import { AppIcon } from "./components/app-icon";
 import { Button } from "./components/ui/button";
 import { useStudio } from "./context";
 import { Connections } from "./pages/connections";
@@ -29,7 +30,7 @@ export default function App() {
           className="flex items-baseline justify-self-center font-heading text-base font-extrabold tracking-[-0.5px]"
         >
           <span className="mr-2 grid place-items-center self-center text-foreground">
-            <Cast size={20} />
+            <AppIcon width={20} height={20} />
           </span>
           <span className="text-lg">
             studio<span className="ml-0.5 text-xs font-bold">CTRL</span>
