@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Settings } from "lucide-react";
 import { useStudio } from "../context";
 import { useMonitorMode } from "../hooks/use-monitor-mode";
@@ -28,7 +27,6 @@ export function SceneMonitor({
     mode === "obs" && status === "connected" && studio,
     previewEpoch,
   );
-  const [menuOpen, setMenuOpen] = useState(false);
   const label = kind === "preview" ? "Preview" : "Program";
   function select(value: string) {
     if (value !== "none" && value !== "obs") return;
@@ -37,7 +35,7 @@ export function SceneMonitor({
   return (
     <article
       aria-label={`${label} monitor`}
-      className="group/monitor relative aspect-video w-full min-w-0 overflow-hidden border border-border bg-black text-white"
+      className="relative aspect-video w-full min-w-0 overflow-hidden border border-border bg-black text-white"
     >
       <canvas
         ref={canvas}
@@ -68,10 +66,7 @@ export function SceneMonitor({
         </span>
       )}
       <div
-        className={cn(
-          "absolute inset-x-0 top-0 z-10 grid h-9 grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)] items-center bg-black/60 text-xs opacity-0 transition-opacity duration-200 group-hover/monitor:opacity-100 group-focus-within/monitor:opacity-100 motion-reduce:transition-none",
-          menuOpen && "opacity-100",
-        )}
+        className="absolute inset-x-0 top-0 z-10 grid h-9 grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)] items-center bg-black/60 text-xs"
       >
         <span
           className="flex min-w-0 items-center gap-1.5 pl-3"
@@ -95,7 +90,7 @@ export function SceneMonitor({
         >
           {phase === "live" ? sceneName : null}
         </span>
-        <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+        <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"

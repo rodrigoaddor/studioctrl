@@ -13,7 +13,7 @@ export default function App() {
     navigate("/", { replace: true });
   }
   return (
-    <div className="min-h-screen">
+    <div className="min-h-dvh">
       <header className="grid h-14 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-4 border-b border-border px-6 max-[720px]:px-4">
         <div className="justify-self-start">
           {status !== "disconnected" && (

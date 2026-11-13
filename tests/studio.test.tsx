@@ -28,12 +28,19 @@ const app = () => (
   </MemoryRouter>
 );
 beforeEach(() => {
+  // jsdom has no layout observer; Radix Scroll Area uses it for scrollbar sizing.
+  vi.stubGlobal("ResizeObserver", class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  });
   localStorage.clear();
   vi.mocked(useStudio).mockReturnValue({ client, ...state });
   HTMLElement.prototype.scrollIntoView = vi.fn();
 });
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
@@ -157,6 +164,9 @@ it("applies valid duration edits on blur or Enter and refreshes from OBS", async
     .spyOn(client, "setTransitionDuration")
     .mockResolvedValue(undefined);
   const { rerender } = render(app());
+  expect(screen.queryByRole("spinbutton")).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Select transition" }));
+  expect(screen.getByRole("separator")).toBeInTheDocument();
   const input = screen.getByRole("spinbutton", {
     name: "Transition duration (milliseconds)",
   });
@@ -169,20 +179,24 @@ it("applies valid duration edits on blur or Enter and refreshes from OBS", async
   rerender(app());
   expect(screen.getByRole("spinbutton")).toHaveValue(1200);
   expect(screen.getByRole("spinbutton")).toBe(input);
+  await user.clear(input);
+  await user.type(input, "1500");
+  await user.click(screen.getByRole("separator"));
+  expect(save).toHaveBeenLastCalledWith(1500);
   await user.clear(screen.getByRole("spinbutton"));
   await user.type(screen.getByRole("spinbutton"), "49");
-  await user.tab();
-  expect(save).toHaveBeenCalledOnce();
+  await user.keyboard("{Enter}");
+  expect(save).toHaveBeenCalledTimes(2);
   expect(screen.getByRole("alert")).toHaveTextContent("50–20,000 ms");
 });
-it("disables the duration input for fixed transitions", () => {
+it("hides the duration summary and editor for fixed transitions", async () => {
   vi.mocked(useStudio).mockReturnValue({ client, ...state, duration: null });
   render(app());
-  expect(
-    screen.getByRole("spinbutton", {
-      name: "Transition duration (milliseconds)",
-    }),
-  ).toBeDisabled();
+  await userEvent.setup().click(screen.getByRole("button", { name: "Select transition" }));
+  expect(screen.queryByText("Fixed")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Select transition" })).not.toHaveTextContent("ms");
+  expect(screen.queryByRole("spinbutton")).not.toBeInTheDocument();
+  expect(screen.queryByRole("separator")).not.toBeInTheDocument();
 });
 
 it("keeps controls mounted and visually enabled during background refresh while blocking actions", async () => {
@@ -192,6 +206,7 @@ it("keeps controls mounted and visually enabled during background refresh while 
   const { rerender } = render(app());
   const transition = screen.getByRole("button", { name: "Transition" });
   const scene = screen.getByRole("button", { name: "Camera Preview" });
+  await user.click(screen.getByRole("button", { name: "Select transition" }));
   vi.mocked(useStudio).mockReturnValue({ client, ...state, syncing: true });
   rerender(app());
   expect(screen.getByRole("button", { name: "Transition" })).toBe(transition);
@@ -201,6 +216,7 @@ it("keeps controls mounted and visually enabled during background refresh while 
   expect(transition).toHaveAttribute("aria-disabled", "true");
   expect(scene).toHaveAttribute("aria-disabled", "true");
   expect(screen.getByRole("spinbutton")).toHaveAttribute("readonly");
+  await user.keyboard("{Escape}");
   await user.click(transition);
   await user.click(scene);
   expect(select).not.toHaveBeenCalled();

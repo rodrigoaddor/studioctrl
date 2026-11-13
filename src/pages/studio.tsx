@@ -1,9 +1,10 @@
-import { Clapperboard, Layers, LoaderCircle } from "lucide-react";
+import { Clapperboard, LoaderCircle } from "lucide-react";
 import { Navigate } from "react-router-dom";
 import { SceneButton } from "../components/scene-button";
 import { SceneMonitor } from "../components/scene-monitor";
 import { TransitionControl } from "../components/transition-control";
 import { Button } from "../components/ui/button";
+import { ScrollArea, ScrollBar } from "../components/ui/scroll-area";
 import { useStudio } from "../context";
 
 export function Studio() {
@@ -20,7 +21,7 @@ export function Studio() {
   if (status !== "connected") return <Navigate to="/" replace />;
   const disabled = busy || syncing;
   return (
-    <main className="mx-auto w-[calc(100%-3rem)] max-w-[1200px] py-6 max-[720px]:w-[calc(100%-2rem)] max-[720px]:py-4">
+    <main className="mx-auto w-[calc(100%-3rem)] max-w-7xl py-6 max-[720px]:w-[calc(100%-2rem)] max-[720px]:py-4">
       {!studio ? (
         <section className="border border-border p-6">
           <h2 className="font-heading m-0 text-sm font-medium">Studio Mode is disabled</h2>
@@ -55,29 +56,24 @@ export function Studio() {
             </div>
           </section>
           <section aria-label="Scenes">
-            <div className="mb-3 flex min-h-6 items-center justify-between gap-3">
-              <h2 className="font-heading m-0 flex items-center gap-[7px] text-[13px] font-medium [&>svg]:text-muted-foreground">
-                <Layers size={17} /> Scenes{" "}
-                <span className="bg-muted px-[5px] py-px text-[11px] text-muted-foreground">
-                  {scenes.length}
-                </span>
-              </h2>
-              <span className="text-[11px] text-muted-foreground">
-                Select for Preview
-              </span>
-            </div>
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(132px,1fr))] gap-3">
-              {scenes.map((scene) => (
-                <SceneButton
-                  key={scene}
-                  name={scene}
-                  isPreview={preview === scene}
-                  isProgram={program === scene}
-                  disabled={disabled}
-                  onSelect={() => void client.selectScene(scene)}
-                />
-              ))}
-            </div>
+            <ScrollArea
+              className="w-full [&>[data-slot=scroll-area-viewport]]:scroll-fade-x"
+              type="auto"
+            >
+              <div className="grid w-max grid-flow-col auto-cols-[132px] gap-3 p-1">
+                {scenes.map((scene) => (
+                  <SceneButton
+                    key={scene}
+                    name={scene}
+                    isPreview={preview === scene}
+                    isProgram={program === scene}
+                    disabled={disabled}
+                    onSelect={() => void client.selectScene(scene)}
+                  />
+                ))}
+              </div>
+              <ScrollBar orientation="horizontal" className="hidden" />
+            </ScrollArea>
             {!scenes.length && (
               <p className="py-4 text-xs text-muted-foreground">
                 No scenes available in this scene collection.

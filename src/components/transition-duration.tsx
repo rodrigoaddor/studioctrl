@@ -1,6 +1,7 @@
 import { useLayoutEffect, useState } from "react";
+import { Clock } from "lucide-react";
 import { MAX_TRANSITION_DURATION, MIN_TRANSITION_DURATION } from "../lib/obs";
-import { Input } from "./ui/input";
+import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "./ui/input-group";
 
 export function TransitionDuration({
   duration,
@@ -32,10 +33,13 @@ export function TransitionDuration({
     if (next !== duration) onChange(next);
   }
   return (
-    <div className="relative flex w-full flex-col gap-1">
-      <label className="relative block w-full">
-        <span className="sr-only">Transition duration (milliseconds)</span>
-        <Input
+    <div className="flex w-full flex-col">
+      <InputGroup className="border-0 bg-transparent shadow-none has-[[data-slot=input-group-control]:focus-visible]:bg-accent has-[[data-slot=input-group-control]:focus-visible]:ring-0 has-[[data-slot][aria-invalid=true]]:ring-0 dark:bg-transparent dark:has-[[data-slot][aria-invalid=true]]:ring-0">
+        <InputGroupAddon aria-hidden="true">
+          <Clock />
+        </InputGroupAddon>
+        <InputGroupInput
+          aria-label="Transition duration (milliseconds)"
           type="number"
           min={MIN_TRANSITION_DURATION}
           max={MAX_TRANSITION_DURATION}
@@ -48,7 +52,7 @@ export function TransitionDuration({
           placeholder={duration === null ? "Fixed" : undefined}
           title="50–20,000 ms. Press Enter or leave the field to apply."
           aria-invalid={invalid}
-          className="pr-8 text-center tabular-nums"
+          className="text-center tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:m-0 [&::-webkit-outer-spin-button]:appearance-none"
           onChange={(event) => {
             setDraft(event.target.value);
             setInvalid(false);
@@ -61,19 +65,14 @@ export function TransitionDuration({
             }
           }}
         />
-        {duration !== null && (
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-[11px] text-muted-foreground"
-          >
-            ms
-          </span>
-        )}
-      </label>
+        <InputGroupAddon align="inline-end" aria-hidden="true">
+          <InputGroupText>ms</InputGroupText>
+        </InputGroupAddon>
+      </InputGroup>
       {invalid && (
         <span
           role="alert"
-          className="absolute inset-x-0 top-full mt-1 text-[10px] text-destructive"
+          className="px-2 pb-2 text-[10px] text-destructive"
         >
           Enter 50–20,000 ms.
         </span>

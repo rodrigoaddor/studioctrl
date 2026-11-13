@@ -28,9 +28,9 @@ export function SceneButton({
       className={cn(
         "relative aspect-square w-full min-w-0 cursor-pointer overflow-hidden border-2 bg-card text-card-foreground transition-none hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring aria-disabled:cursor-default",
         isProgram
-          ? "border-program"
+          ? "border-3 border-program"
           : isPreview
-            ? "border-preview"
+            ? "border-3 border-preview"
             : "border-border",
         isPreview &&
           isProgram &&

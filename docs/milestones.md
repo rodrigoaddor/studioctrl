@@ -6,7 +6,7 @@ This file owns product scope, decisions, milestone status, and deferred work. Se
 
 - Build for larger screens first. Phone-first layouts are outside the initial target. Keep the interface compact with concise functional copy and no promotional sections or footer.
 - Use a client-rendered React application with Vite, TypeScript, Tailwind CSS, editable shadcn/ui components, and simple React Router routes. SSR is unnecessary for the current scope.
-- Keep control-state changes stable in layout: no press movement or layout-changing loading/error rows. The monitor hover overlay may fade through opacity only.
+- Keep control-state changes stable in layout: no press movement or layout-changing loading/error rows. Monitor overlays remain visible at all times.
 - Use Tailwind utilities for application styling; reserve CSS for theme/base integration and styles that utilities cannot reasonably express.
 - Use Bun for dependencies and script execution.
 - Connect directly to the OBS built-in WebSocket server. The operator supplies a reachable address, potentially through a network such as Tailscale.
@@ -26,8 +26,8 @@ Delivered scope:
 - Add-connection QR scanning via camera or uploaded image/screenshot, filling OBS address/password for review without saving or connecting automatically. Parser and scanner lifecycle/form regressions pass; real camera/image browser acceptance remains outstanding.
 - Studio Mode gate with an enable button.
 - Separate 16:9 Preview and Program monitors with OBS screenshot playback or centered scene-name fallback, independent source menus, top-left indicators, and scene-tile indicators.
-- Square scene buttons below both monitors have centered names, bottom Preview/Program labels, and selection-colored borders; scene selection changes Preview only.
-- A standalone Transition button is vertically centered between the monitors. A separate bottom-aligned selector changes the OBS transition type without triggering it, and a duration field updates non-fixed transitions in OBS (50–20,000 ms).
+- Square scene buttons below both monitors occupy one horizontally scrollable row without a visible section header, with centered names, bottom Preview/Program labels, and saturated green/red selection-colored borders; scene selection changes Preview only. The shared app shell uses dynamic viewport height to account for visible browser toolbars. These layout/color tweaks still require visual browser acceptance.
+- A standalone Transition button is vertically centered between the monitors. A separate settings button below the action opens transition choices followed by a separator and duration input; these update the OBS transition type and non-fixed duration (50–20,000 ms) without triggering a transition.
 - Event-driven synchronization with OBS, manual refresh in the appbar, busy controls, visible request errors, and disconnect handling.
 - Automated protocol, connection-management UI, and persistence tests; production build verification.
 
@@ -55,9 +55,9 @@ Acceptance: document the tested environment and results, add regression coverage
 
 Delivered:
 
-- Each monitor’s translucent overlay contains the top-left Preview/Program indicator, a full-height settings button flush with the right corner, and the centered scene name during live playback. It fades in on hover/focus, fades out without a delay, and stays visible with the dropdown.
+- Each monitor’s translucent overlay contains the top-left Preview/Program indicator, a full-height settings button flush with the right corner, and the centered scene name during live playback. It stays visible at all times, including while the dropdown is closed.
 - No Preview shows the centered scene name. OBS Preview displays repeated `GetSourceScreenshot` frames; Remote Preview is disabled and does nothing.
-- A text-only Show Previews / Hide Previews button at the top of the monitor area toggles both monitors together. Mixed/off states enable both on click; when both are enabled, clicking disables both. Individual menus and the combined toggle stay synchronized.
+- A text-only Show Previews / Hide Previews button above the Transition action on desktop toggles both monitors together. Mixed/off states enable both on click; when both are enabled, clicking disables both. Individual menus and the combined toggle stay synchronized.
 - Preferences persist independently per saved profile and monitor; both default to No Preview. Explicitly saved OBS Preview selections remain enabled across reloads.
 - Response/decode-paced JPEG capture at width 640, quality 65, capped at 10 FPS per enabled monitor, with bounded current-generation requests, hidden-tab pause, failure backoff, and stale-frame/session cleanup.
 - Read-only live capture verification on 2026-11-12: both monitors received 22 valid JPEG frames in about 2.2 seconds from the supplied local OBS instance, with no capture errors and unchanged Preview/Program selections. This checks capture throughput, not browser rendering smoothness or actual output fidelity.
