@@ -39,6 +39,8 @@ export interface StudioState {
   program: string | null;
   transitions: string[];
   currentTransition: string | null;
+  currentTransitionKind: string | null;
+  monitorFade: { from: string; to: string; duration: number; startedAt: number } | null;
   duration: number | null;
   busy: boolean;
   syncing: boolean;
@@ -59,6 +61,8 @@ const initial: StudioState = {
   program: null,
   transitions: [],
   currentTransition: null,
+  currentTransitionKind: null,
+  monitorFade: null,
   duration: null,
   busy: false,
   syncing: false,
@@ -151,6 +155,7 @@ export class StudioClient {
       this.screenshotRequests.clear();
       this.update({
         syncing: true,
+        monitorFade: null,
         thumbnails: {},
         previewReady: null,
         generating: null,
@@ -163,8 +168,18 @@ export class StudioClient {
     obs.on("CurrentSceneCollectionChanged", refresh);
     obs.on("CurrentSceneTransitionChanged", refresh);
     obs.on("CurrentSceneTransitionDurationChanged", refresh);
-    obs.on("SceneTransitionStarted", () => {
-      if (this.obs === obs) this.update({ busy: true });
+    obs.on("SceneTransitionStarted", ({ transitionName }) => {
+      if (this.obs !== obs) return;
+      const { studio, currentTransition, currentTransitionKind, preview, program, duration } = this.state;
+      this.update({
+        busy: true,
+        monitorFade:
+          studio && transitionName === currentTransition &&
+          currentTransitionKind === "fade_transition" &&
+          preview && program && preview !== program && duration !== null && duration > 0
+            ? { from: program, to: preview, duration, startedAt: performance.now() }
+            : null,
+      });
     });
     obs.on("SceneTransitionVideoEnded", () => {
       if (this.obs !== obs) return;
@@ -265,6 +280,7 @@ export class StudioClient {
             String(t.transitionName),
           ),
           currentTransition: current.transitionName,
+          currentTransitionKind: current.transitionKind,
           duration: current.transitionFixed ? null : current.transitionDuration,
           syncing: false,
         });
@@ -646,7 +662,7 @@ export class StudioClient {
         }, 30000);
     } catch (error) {
       if (this.obs === obs) {
-        this.update({ busy: false });
+        this.update({ busy: false, monitorFade: null });
         this.fail(error);
       }
     }

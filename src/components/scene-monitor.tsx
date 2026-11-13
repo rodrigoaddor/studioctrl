@@ -1,3 +1,4 @@
+import { useEffect, useState, type ReactNode } from "react";
 import { Settings } from "lucide-react";
 import { useStudio } from "../context";
 import { useMonitorMode } from "../hooks/use-monitor-mode";
@@ -19,30 +20,25 @@ export function SceneMonitor({
   kind: "preview" | "program";
   sceneName: string | null;
 }) {
-  const {
-    client,
-    profile,
-    status,
-    studio,
-    previewEpoch,
-    thumbnails,
-    previewReady,
-  } = useStudio();
+  const { profile, status, studio, monitorFade } = useStudio();
+  const [finishedFade, setFinishedFade] = useState<typeof monitorFade>(null);
+  const fade =
+    kind === "program" && status === "connected" && studio && monitorFade &&
+    (sceneName === monitorFade.to ||
+      (finishedFade !== monitorFade && sceneName === monitorFade.from))
+      ? monitorFade
+      : null;
+  useEffect(() => {
+    if (!fade) return;
+    const timer = setTimeout(
+      () => setFinishedFade(fade),
+      Math.max(0, fade.duration - (performance.now() - fade.startedAt)),
+    );
+    return () => clearTimeout(timer);
+  }, [fade]);
   const [mode, setMode] = useMonitorMode(profile?.id ?? "default", kind);
-  const cached =
-    kind === "preview" && mode === "obs" && sceneName
-      ? thumbnails[sceneName]
-      : undefined;
-  const useCached = !!cached && previewReady !== sceneName;
-  const { canvas, phase } = useObsPreview(
-    client,
-    sceneName,
-    mode === "obs" && status === "connected" && studio && !useCached,
-    previewEpoch,
-    kind === "preview",
-  );
-  const showingCached = !!cached && phase !== "live";
-  const hasImage = phase === "live" || !!cached;
+  const [hasImage, setHasImage] = useState(false);
+  const continuingFade = fade && mode === "obs";
   const label = kind === "preview" ? "Preview" : "Program";
   function select(value: string) {
     if (value !== "none" && value !== "obs") return;
@@ -53,49 +49,23 @@ export function SceneMonitor({
       aria-label={`${label} monitor`}
       className="relative aspect-video w-full min-w-0 overflow-hidden border border-border bg-black text-white"
     >
-      {showingCached && (
-        <img
-          key={`${previewEpoch}:${sceneName}:${cached}`}
-          src={cached}
-          alt={`Cached preview of ${sceneName}`}
-          className="absolute inset-0 size-full object-contain opacity-75"
+      {(!continuingFade || finishedFade !== fade) && (
+        <MonitorPicture
+          kind={kind}
+          sceneName={continuingFade ? fade.from : sceneName}
+          mode={mode}
+          onImageChange={continuingFade ? undefined : setHasImage}
         />
       )}
-      <canvas
-        ref={canvas}
-        aria-label={`${label} screenshot of ${sceneName ?? "scene"}`}
-        className={cn(
-          "absolute inset-0 size-full object-contain",
-          phase !== "live" && "invisible",
-        )}
-      />
-      {showingCached && (
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-linear-to-t from-black/50 to-transparent"
-        />
-      )}
-      {!hasImage && (
-        <div className="absolute inset-0 grid place-items-center px-6 py-12">
-          <h2
-            className="font-heading line-clamp-3 text-center text-xl font-medium wrap-anywhere max-[720px]:text-base"
-            title={sceneName ?? undefined}
-          >
-            {sceneName ?? `No ${kind} scene`}
-          </h2>
-        </div>
-      )}
-      {(showingCached || phase === "loading" || phase === "error") && (
-        <span
-          role="status"
-          className="absolute inset-x-2 bottom-2 text-center text-[11px] text-white/70"
-        >
-          {showingCached
-            ? "Video Preview"
-            : phase === "loading"
-              ? "Loading preview…"
-              : "Preview unavailable · Retrying…"}
-        </span>
+      {continuingFade && (
+          <FadeLayer key={fade.startedAt} fade={fade}>
+            <MonitorPicture
+              kind="program"
+              sceneName={fade.to}
+              mode={mode}
+              onImageChange={setHasImage}
+            />
+          </FadeLayer>
       )}
       <div className="absolute inset-x-0 top-0 z-10 grid h-9 grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)] items-center bg-black/60 text-xs">
         <span
@@ -147,5 +117,100 @@ export function SceneMonitor({
         </DropdownMenu>
       </div>
     </article>
+  );
+}
+
+// Preserve the incoming canvas after the animation so playback never restarts.
+function FadeLayer({ fade, children }: {
+  fade: NonNullable<ReturnType<typeof useStudio>["monitorFade"]>;
+  children: ReactNode;
+}) {
+  const [elapsed] = useState(() => Math.max(0, performance.now() - fade.startedAt));
+  return (
+    <div
+      className="pointer-events-none absolute inset-0 animate-in fade-in-0 fill-mode-both [animation-timing-function:linear] bg-black"
+      style={{
+        animationDuration: `${fade.duration}ms`,
+        animationDelay: `-${elapsed}ms`,
+      }}
+      data-program-fade=""
+    >
+      {children}
+    </div>
+  );
+}
+
+function MonitorPicture({ kind, sceneName, mode, onImageChange }: {
+  kind: "preview" | "program";
+  sceneName: string | null;
+  mode: "none" | "obs";
+  onImageChange?: (hasImage: boolean) => void;
+}) {
+  const { client, status, studio, previewEpoch, thumbnails, previewReady } = useStudio();
+  const cached =
+    kind === "preview" && mode === "obs" && sceneName
+      ? thumbnails[sceneName]
+      : undefined;
+  const useCached = !!cached && previewReady !== sceneName;
+  const { canvas, phase } = useObsPreview(
+    client,
+    sceneName,
+    mode === "obs" && status === "connected" && studio && !useCached,
+    previewEpoch,
+    kind === "preview",
+  );
+  const showingCached = !!cached && phase !== "live";
+  const hasImage = phase === "live" || !!cached;
+  useEffect(() => {
+    onImageChange?.(hasImage);
+  }, [hasImage, onImageChange]);
+  const label = kind === "preview" ? "Preview" : "Program";
+  return (
+    <>
+      {showingCached && (
+        <img
+          key={`${previewEpoch}:${sceneName}:${cached}`}
+          src={cached}
+          alt={`Cached preview of ${sceneName}`}
+          className="absolute inset-0 size-full object-contain opacity-75"
+        />
+      )}
+      <canvas
+        ref={canvas}
+        aria-label={`${label} screenshot of ${sceneName ?? "scene"}`}
+        className={cn(
+          "absolute inset-0 size-full object-contain",
+          phase !== "live" && "invisible",
+        )}
+      />
+      {showingCached && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-linear-to-t from-black/50 to-transparent"
+        />
+      )}
+      {!hasImage && (
+        <div className="absolute inset-0 grid place-items-center px-6 py-12">
+          <h2
+            className="font-heading line-clamp-3 text-center text-xl font-medium wrap-anywhere max-[720px]:text-base"
+            title={sceneName ?? undefined}
+          >
+            {sceneName ?? `No ${kind} scene`}
+          </h2>
+        </div>
+      )}
+      {(showingCached || phase === "loading" || phase === "error") && (
+        <span
+          role="status"
+          className="absolute inset-x-2 bottom-2 text-center text-[11px] text-white/70"
+        >
+          {showingCached
+            ? "Video Preview"
+            : phase === "loading"
+              ? "Loading preview…"
+              : "Preview unavailable · Retrying…"}
+        </span>
+      )}
+    </>
   );
 }

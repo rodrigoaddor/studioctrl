@@ -29,6 +29,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 it("offers independent saved modes and a disabled Remote Preview option", async () => {
   const user = userEvent.setup();
@@ -146,4 +147,52 @@ it("uses a cached media image before useful playback and returns to live when re
     screen.queryByAltText("Cached preview of Camera"),
   ).not.toBeInTheDocument();
   expect(screen.queryByText("Video Preview")).not.toBeInTheDocument();
+});
+
+it("crossfades Program for the configured duration without restarting incoming playback at the end", () => {
+  vi.useFakeTimers();
+  localStorage.setItem(monitorSettingsKey("studio", "program"), "obs");
+  const stop = vi.fn();
+  const loops: Parameters<typeof screenshots.startScreenshotPreview>[0][] = [];
+  vi.spyOn(screenshots, "startScreenshotPreview").mockImplementation((options) => {
+    loops.push(options);
+    options.onPhase("live");
+    return stop;
+  });
+  const state = vi.mocked(useStudio).getMockImplementation()!();
+  const { container, rerender } = render(<SceneMonitor kind="program" sceneName="Camera" />);
+  const outgoing = screen.getByLabelText("Program screenshot of Camera");
+  const monitorFade = { from: "Camera", to: "Slides", duration: 1200, startedAt: performance.now() };
+  vi.mocked(useStudio).mockReturnValue({ ...state, monitorFade });
+  rerender(<SceneMonitor kind="program" sceneName="Camera" />);
+  const incoming = screen.getByLabelText("Program screenshot of Slides");
+  expect(screen.getByLabelText("Program screenshot of Camera")).toBe(outgoing);
+  expect(container.querySelector<HTMLElement>("[data-program-fade]")?.style.animationDuration).toBe("1200ms");
+  expect(screen.getByRole("button", { name: "Program settings" }).closest("[data-program-fade]")).toBeNull();
+  // OBS can swap its scene state before the local fade finishes.
+  rerender(<SceneMonitor kind="program" sceneName="Slides" />);
+  act(() => vi.advanceTimersByTime(1199));
+  expect(outgoing).toBeInTheDocument();
+  act(() => vi.advanceTimersByTime(1));
+  expect(outgoing).not.toBeInTheDocument();
+  expect(screen.getByLabelText("Program screenshot of Slides")).toBe(incoming);
+  expect(loops).toHaveLength(2);
+  expect(stop).toHaveBeenCalledOnce();
+  // A collection/session reset discards the old composite.
+  vi.mocked(useStudio).mockReturnValue({ ...state, monitorFade: null, previewEpoch: 1 });
+  rerender(<SceneMonitor kind="program" sceneName="Slides" />);
+  expect(container.querySelector("[data-program-fade]")).toBeNull();
+  vi.useRealTimers();
+});
+
+it("does not animate Preview or disabled Program previews", () => {
+  const state = vi.mocked(useStudio).getMockImplementation()!();
+  vi.mocked(useStudio).mockReturnValue({ ...state,
+    monitorFade: { from: "Camera", to: "Slides", duration: 300, startedAt: performance.now() },
+  });
+  const { container } = render(<>
+    <SceneMonitor kind="program" sceneName="Camera" />
+    <SceneMonitor kind="preview" sceneName="Slides" />
+  </>);
+  expect(container.querySelector("[data-program-fade]")).toBeNull();
 });

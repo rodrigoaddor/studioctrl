@@ -78,6 +78,8 @@ Delivered:
 - Read-only live capture verification on 2026-11-12: both monitors received 22 valid JPEG frames in about 2.2 seconds from the supplied local OBS instance, with no capture errors and unchanged Preview/Program selections. This checks capture throughput, not browser rendering smoothness or actual output fidelity.
 - Automated tests cover request sharing/caps, collection invalidation, loop pacing, decode-before-draw, cancellation, preferences, and the disabled remote option.
 
+- Program now locally simulates OBS Fade transitions for the configured duration, including renamed fades and external start events. It crossfades outgoing/incoming scene screenshots while keeping controls stable; Cut and other transitions retain immediate scene updates. Protocol and DOM regressions cover duration/start snapshots, renamed Fade detection, Cut exclusion, canvas continuity, and cleanup. Actual browser smoothness and timing against OBS remain unverified.
+
 Remaining acceptance:
 
 - Verify visual smoothness, memory/OBS load, and control responsiveness in the actual browser over the intended network. Browser drawing is covered by controlled tests; live browser QA has not been performed.

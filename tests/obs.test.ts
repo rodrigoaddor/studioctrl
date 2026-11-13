@@ -180,6 +180,7 @@ beforeEach(async () => {
         case "GetCurrentSceneTransition":
           responseData = {
             transitionName: transition,
+            transitionKind: transition === "Cut" ? "cut_transition" : transition === "Stinger" ? "stinger_transition" : "fade_transition",
             transitionFixed,
             transitionDuration,
           };
@@ -212,7 +213,7 @@ beforeEach(async () => {
             result = false;
             break;
           }
-          event("SceneTransitionStarted");
+          event("SceneTransitionStarted", { transitionName: transition });
           [program, preview] = [preview, program];
           event("CurrentProgramSceneChanged", { sceneName: program });
           event("CurrentPreviewSceneChanged", { sceneName: preview });
@@ -884,4 +885,39 @@ it("classifies live media for controls even while paused or stopped, while retai
   mediaDuration = null;
   mediaInputSettings.Clip.inputSettings.is_local_file = true;
   expect((await client.getActiveMedia())[0].live).toBe(false);
+});
+
+it("records the Fade start and configured duration before OBS swaps scenes", async () => {
+  await connect();
+  await client.enableStudio();
+  await client.setTransitionDuration(1200);
+  const started = performance.now();
+  await client.transition("Fade");
+  expect(client.getSnapshot().monitorFade).toMatchObject({ from: "Starting", to: "Camera", duration: 1200 });
+  expect(client.getSnapshot().monitorFade!.startedAt).toBeGreaterThanOrEqual(started);
+  expect(client.getSnapshot().program).toBe("Camera");
+  client.disconnect();
+  expect(client.getSnapshot().monitorFade).toBeNull();
+});
+
+it("simulates renamed fades by OBS kind and skips Cut and other transition kinds", async () => {
+  await connect();
+  await client.enableStudio();
+  transition = "Gentle dissolve";
+  await client.refresh();
+  event("SceneTransitionStarted", { transitionName: transition });
+  await expect.poll(() => client.getSnapshot().monitorFade?.to).toBe("Camera");
+  event("SceneTransitionVideoEnded");
+  await expect.poll(() => client.getSnapshot().busy).toBe(false);
+  await client.transition("Cut");
+  expect(client.getSnapshot().monitorFade).toBeNull();
+});
+
+it("does not simulate a non-Fade transition", async () => {
+  await connect();
+  await client.enableStudio();
+  transition = "Stinger";
+  await client.refresh();
+  await client.transition("Stinger");
+  expect(client.getSnapshot().monitorFade).toBeNull();
 });
