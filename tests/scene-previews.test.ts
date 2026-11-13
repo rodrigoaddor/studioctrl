@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type OBSWebSocket from "obs-websocket-js/json";
-import { generateScenePreviews, sceneMedia } from "../src/lib/scene-previews";
+import {
+  generateScenePreviews,
+  sceneMedia,
+  scenePreviewSources,
+} from "../src/lib/scene-previews";
 
 let preview: string;
 let active: boolean;
@@ -305,4 +309,101 @@ it("seeks only the first available media source", async () => {
         data?.inputName === "Other clip",
     ),
   ).toHaveLength(0);
+});
+
+it("detects enabled capture devices through nested scenes/groups and ignores hidden devices and audio capture", async () => {
+  call.mockImplementation(async (type, data) => {
+    if (data?.sceneName === "Root")
+      return {
+        sceneItems: [
+          {
+            sourceName: "Hidden device",
+            inputKind: "macos-avcapture-fast",
+            sceneItemEnabled: false,
+          },
+          { sourceName: "Group", isGroup: true, sceneItemEnabled: true },
+          {
+            sourceName: "Hidden scene",
+            sourceType: "OBS_SOURCE_TYPE_SCENE",
+            sceneItemEnabled: false,
+          },
+        ],
+      };
+    if (type === "GetGroupSceneItemList")
+      return {
+        sceneItems: [
+          {
+            sourceName: "Nested",
+            sourceType: "OBS_SOURCE_TYPE_SCENE",
+            sceneItemEnabled: true,
+          },
+        ],
+      };
+    return {
+      sceneItems: [
+        {
+          sourceName: "Device",
+          inputKind: "macos-avcapture-fast",
+          sceneItemEnabled: true,
+        },
+        {
+          sourceName: "Clip",
+          inputKind: "ffmpeg_source",
+          sceneItemEnabled: true,
+        },
+      ],
+    };
+  });
+  expect(await scenePreviewSources(options().obs, "Root")).toEqual({
+    media: ["Clip"],
+    hasCaptureDevice: true,
+  });
+  expect(call).toHaveBeenCalledTimes(3);
+  call.mockResolvedValue({
+    sceneItems: [
+      {
+        sourceName: "Hidden device",
+        inputKind: "macos-avcapture-fast",
+        sceneItemEnabled: false,
+      },
+      {
+        sourceName: "Audio",
+        inputKind: "wasapi_input_capture",
+        sceneItemEnabled: true,
+      },
+    ],
+  });
+  expect(await scenePreviewSources(options().obs, "Root")).toEqual({
+    media: [],
+    hasCaptureDevice: false,
+  });
+});
+
+it("captures a playing live Media Source without seeking, restarting, or restoring its cursor", async () => {
+  state = "OBS_MEDIA_STATE_PLAYING";
+  cursor = 45;
+  duration = -9223372036854776;
+  const base = call.getMockImplementation()!;
+  call.mockImplementation(async (type, data) => {
+    if (type === "GetInputSettings")
+      return {
+        inputKind: "ffmpeg_source",
+        inputSettings: { is_local_file: false },
+      };
+    return base(type, data);
+  });
+  const config = options();
+  config.scenes = ["Media"];
+  const result = generateScenePreviews(config);
+  await vi.runAllTimersAsync();
+  expect(await result).toBe(0);
+  expect(config.save).toHaveBeenCalledWith("Media", "frame");
+  expect(
+    call.mock.calls.some(
+      ([type]) =>
+        type === "SetMediaInputCursor" || type === "TriggerMediaInputAction",
+    ),
+  ).toBe(false);
+  expect(state).toBe("OBS_MEDIA_STATE_PLAYING");
+  expect(cursor).toBe(45);
 });

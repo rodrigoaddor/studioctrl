@@ -73,7 +73,7 @@ bun run test
 bun run build
 ```
 
-Monitor settings offer No Preview or OBS Preview independently for Preview and Program, defaulting to No Preview and remembering each browser-local choice; Remote Preview is reserved for later. OBS Preview uses low-frame-rate scene screenshots, with the scene name as fallback. Scene buttons cache representative images locally in this browser. The Preview monitor can show a labeled cached image while media is inactive or before useful playback.
+Monitor settings offer No Preview or OBS Preview independently for Preview and Program, defaulting to No Preview and remembering each browser-local choice; Remote Preview is reserved for later. OBS Preview uses low-frame-rate scene screenshots, with the scene name as fallback. Scene buttons cache representative images locally in this browser. The Preview monitor can show a cached image at a constant 75% opacity while media is inactive or before useful playback. Scenes with an enabled native video capture device, or a playing network Media Source with unknown duration, use live OBS screenshots even when other media is unavailable; cached images remain a fallback if live screenshots are black or unavailable.
 
 Tests use a simulated OBS WebSocket server and jsdom. See [development](docs/development.md) for coverage and verification limits; full browser/OBS acceptance remains outstanding.
 

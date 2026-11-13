@@ -27,8 +27,52 @@ export function representativeMediaReady(
   );
 }
 
-export async function sceneMedia(obs: OBSWebSocket, sceneName: string) {
+type MediaStatus = {
+  mediaState: string;
+  mediaDuration: number | null;
+};
+
+// A missing duration alone can also mean a file is stopped or failed to load.
+// Require both active playback and OBS's explicit non-local Media Source setting.
+export async function liveMediaReady(
+  obs: OBSWebSocket,
+  inputName: string,
+  status: MediaStatus,
+) {
+  if (
+    status.mediaState !== "OBS_MEDIA_STATE_PLAYING" ||
+    (status.mediaDuration !== null &&
+      Number.isFinite(status.mediaDuration) &&
+      status.mediaDuration > 0)
+  )
+    return false;
+  try {
+    const { inputKind, inputSettings } = await obs.call("GetInputSettings", {
+      inputName,
+    });
+    return (
+      inputKind === "ffmpeg_source" && inputSettings?.is_local_file === false
+    );
+  } catch {
+    return false;
+  }
+}
+
+// Native video-device input kinds; source names are user-editable.
+const captureDeviceKinds = new Set([
+  "macos-avcapture-fast",
+  "macos-avcapture",
+  "av_capture_input",
+  "dshow_input",
+  "v4l2_input",
+]);
+
+export async function scenePreviewSources(
+  obs: OBSWebSocket,
+  sceneName: string,
+) {
   const media = new Set<string>();
+  let hasCaptureDevice = false;
   const visited = new Set<string>();
   async function visit(name: string, group = false) {
     const key = `${group}:${name}`;
@@ -45,10 +89,16 @@ export async function sceneMedia(obs: OBSWebSocket, sceneName: string) {
       else if (item.sourceType === "OBS_SOURCE_TYPE_SCENE") await visit(source);
       else if (["ffmpeg_source", "vlc_source"].includes(String(item.inputKind)))
         media.add(source);
+      else if (captureDeviceKinds.has(String(item.inputKind)))
+        hasCaptureDevice = true;
     }
   }
   await visit(sceneName);
-  return [...media];
+  return { media: [...media], hasCaptureDevice };
+}
+
+export async function sceneMedia(obs: OBSWebSocket, sceneName: string) {
+  return (await scenePreviewSources(obs, sceneName)).media;
 }
 
 // Decode a small sample once per candidate, rather than analyzing every live frame.
@@ -188,10 +238,12 @@ export async function generateScenePreviews({
         for (const media of originals) {
           try {
             await safeMedia(media.inputName);
-            touched.add(media.inputName);
             let status = await obs.call("GetMediaInputStatus", {
               inputName: media.inputName,
             });
+            if (await liveMediaReady(obs, media.inputName, status)) continue;
+            await safeMedia(media.inputName);
+            touched.add(media.inputName);
             if (!playable(status.mediaState)) {
               await obs.call("TriggerMediaInputAction", {
                 inputName: media.inputName,

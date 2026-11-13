@@ -2,9 +2,10 @@ import OBSWebSocket from "obs-websocket-js/json";
 import type { Profile } from "./profiles";
 import {
   generateScenePreviews,
-  sceneMedia,
+  scenePreviewSources,
   usablePreview,
   representativeMediaReady,
+  liveMediaReady,
 } from "./scene-previews";
 import { readPreview, writePreview } from "./preview-cache";
 
@@ -298,10 +299,17 @@ export class StudioClient {
           (scene !== this.state.preview && this.state.thumbnails[scene])
         )
           continue;
-        const media = await sceneMedia(obs, scene);
+        const { media, hasCaptureDevice } = await scenePreviewSources(obs, scene);
         const statuses = await Promise.all(
-          media.map((inputName) =>
+          (hasCaptureDevice ? [] : media).map((inputName) =>
             obs.call("GetMediaInputStatus", { inputName }).catch(() => null),
+          ),
+        );
+        const live = await Promise.all(
+          statuses.map((status, index) =>
+            status
+              ? liveMediaReady(obs, media[index], status)
+              : Promise.resolve(false),
           ),
         );
         if (
@@ -312,6 +320,8 @@ export class StudioClient {
         )
           return;
         const ready =
+          hasCaptureDevice ||
+          live.some(Boolean) ||
           media.length === 0 ||
           representativeMediaReady(statuses.filter((status) => status !== null));
         if (

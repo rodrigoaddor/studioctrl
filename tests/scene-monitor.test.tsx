@@ -132,7 +132,7 @@ it("uses a cached media image before useful playback and returns to live when re
     <SceneMonitor kind="preview" sceneName="Camera" />,
   );
   expect(screen.getByAltText("Cached preview of Camera")).toBeInTheDocument();
-  expect(screen.getByText("Cached preview")).toBeInTheDocument();
+  expect(screen.getByText("Video Preview")).toBeInTheDocument();
   expect(capture).not.toHaveBeenCalled();
   vi.spyOn(screenshots, "startScreenshotPreview").mockImplementation(
     ({ onPhase }) => {
@@ -145,4 +145,5 @@ it("uses a cached media image before useful playback and returns to live when re
   expect(
     screen.queryByAltText("Cached preview of Camera"),
   ).not.toBeInTheDocument();
+  expect(screen.queryByText("Video Preview")).not.toBeInTheDocument();
 });

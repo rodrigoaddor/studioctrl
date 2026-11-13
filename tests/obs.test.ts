@@ -35,6 +35,7 @@ let mediaActive: boolean;
 let mediaCursor: number;
 let mediaDuration: number | null;
 let mediaState: string;
+let mediaInputSettings: Record<string, { inputKind: string; inputSettings: Record<string, unknown> }>;
 let previewItems: Record<string, object[]>;
 let groupItems: Record<string, object[]>;
 let holdSceneItems: boolean;
@@ -65,6 +66,7 @@ beforeEach(async () => {
   mediaActive = true;
   mediaCursor = 5000;
   mediaDuration = 60000;
+  mediaInputSettings = {};
   mediaState = "OBS_MEDIA_STATE_PLAYING";
   previewItems = {};
   groupItems = {};
@@ -127,6 +129,9 @@ beforeEach(async () => {
           break;
         case "GetGroupSceneItemList":
           responseData = { sceneItems: groupItems[d.requestData.sceneName] ?? [] };
+          break;
+        case "GetInputSettings":
+          responseData = mediaInputSettings[d.requestData.inputName] ?? { inputKind: "ffmpeg_source", inputSettings: {} };
           break;
         case "GetMediaInputStatus":
           responseData = d.requestData.inputName === "Unavailable camera"
@@ -719,4 +724,73 @@ it("caches natural playback from an available clip despite an unavailable camera
   expect(client.getSnapshot().previewReady).toBe("Camera");
   expect(requests).not.toContain("SetMediaInputCursor");
   expect(requests).not.toContain("TriggerMediaInputAction");
+});
+
+it("uses live Preview for an enabled capture card despite unavailable media and a saved thumbnail", async () => {
+  previewItems.Camera = [
+    { sourceName: "Unavailable camera", inputKind: "ffmpeg_source", sceneItemEnabled: true },
+    { sourceName: "Capture Card Device", inputKind: "macos-avcapture-fast", sceneItemEnabled: true },
+  ];
+  vi.mocked(readPreview).mockResolvedValue("data:image/jpeg;base64,saved");
+  await connect(); await client.enableStudio();
+  await expect.poll(() => client.getSnapshot().thumbnails.Camera).toBeTruthy();
+  await client.collectPreviews();
+  expect(client.getSnapshot().previewReady).toBe("Camera");
+  expect(requests).not.toContain("SetMediaInputCursor");
+  expect(requests).not.toContain("TriggerMediaInputAction");
+});
+
+it("returns to the cached media gate when the capture device is disabled", async () => {
+  const device = { sourceName: "Device", inputKind: "macos-avcapture-fast", sceneItemEnabled: true };
+  previewItems.Camera = [
+    { sourceName: "Unavailable camera", inputKind: "ffmpeg_source", sceneItemEnabled: true },
+    device,
+  ];
+  await connect(); await client.enableStudio(); await client.collectPreviews();
+  expect(client.getSnapshot().previewReady).toBe("Camera");
+  expect(client.getSnapshot().thumbnails.Camera).toBeTruthy();
+  device.sceneItemEnabled = false;
+  await client.collectPreviews();
+  expect(client.getSnapshot().previewReady).toBeNull();
+  expect(client.getSnapshot().thumbnails.Camera).toBeTruthy();
+});
+
+it("uses live Preview for playing non-local camera media with an unknown duration", async () => {
+  previewItems.Camera = [{ sourceName: "Clip", inputKind: "ffmpeg_source", sceneItemEnabled: true }];
+  mediaInputSettings.Clip = { inputKind: "ffmpeg_source", inputSettings: { is_local_file: false } };
+  mediaDuration = -9223372036854776; mediaCursor = 45;
+  vi.mocked(readPreview).mockResolvedValue("data:image/jpeg;base64,saved");
+  await connect(); await client.enableStudio();
+  await expect.poll(() => client.getSnapshot().thumbnails.Camera).toBeTruthy();
+  await client.collectPreviews();
+  expect(client.getSnapshot().previewReady).toBe("Camera");
+  expect(requests).not.toContain("SetMediaInputCursor");
+  expect(requests).not.toContain("TriggerMediaInputAction");
+  mediaInputSettings.Clip.inputSettings.is_local_file = true;
+  await client.collectPreviews();
+  expect(client.getSnapshot().previewReady).toBeNull();
+});
+it("keeps finite network video files on the normal cached-preview path", async () => {
+  previewItems.Camera = [{ sourceName: "Clip", inputKind: "ffmpeg_source", sceneItemEnabled: true }];
+  mediaInputSettings.Clip = { inputKind: "ffmpeg_source", inputSettings: { is_local_file: false } };
+  mediaDuration = 18000; mediaCursor = 45;
+  vi.mocked(readPreview).mockResolvedValue("data:image/jpeg;base64,saved");
+  await connect(); await client.enableStudio(); await client.collectPreviews();
+  expect(client.getSnapshot().previewReady).toBeNull();
+  mediaCursor = 5200;
+  await client.collectPreviews();
+  expect(client.getSnapshot().previewReady).toBe("Camera");
+});
+
+it("naturally caches a live feed and restores fallback eligibility when the feed stops", async () => {
+  previewItems.Camera = [{ sourceName: "Clip", inputKind: "ffmpeg_source", sceneItemEnabled: true }];
+  mediaInputSettings.Clip = { inputKind: "ffmpeg_source", inputSettings: { is_local_file: false } };
+  mediaDuration = null; mediaCursor = 0;
+  await connect(); await client.enableStudio(); await client.collectPreviews();
+  expect(client.getSnapshot().previewReady).toBe("Camera");
+  expect(client.getSnapshot().thumbnails.Camera).toBe("data:image/jpeg;base64,frame");
+  mediaState = "OBS_MEDIA_STATE_ENDED";
+  await client.collectPreviews();
+  expect(client.getSnapshot().previewReady).toBeNull();
+  expect(client.getSnapshot().thumbnails.Camera).toBeTruthy();
 });

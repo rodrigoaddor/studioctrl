@@ -41,6 +41,7 @@ export function SceneMonitor({
     previewEpoch,
     kind === "preview",
   );
+  const showingCached = !!cached && phase !== "live";
   const hasImage = phase === "live" || !!cached;
   const label = kind === "preview" ? "Preview" : "Program";
   function select(value: string) {
@@ -52,11 +53,12 @@ export function SceneMonitor({
       aria-label={`${label} monitor`}
       className="relative aspect-video w-full min-w-0 overflow-hidden border border-border bg-black text-white"
     >
-      {cached && phase !== "live" && (
+      {showingCached && (
         <img
+          key={`${previewEpoch}:${sceneName}:${cached}`}
           src={cached}
           alt={`Cached preview of ${sceneName}`}
-          className="absolute inset-0 size-full object-contain"
+          className="absolute inset-0 size-full object-contain opacity-75"
         />
       )}
       <canvas
@@ -67,6 +69,12 @@ export function SceneMonitor({
           phase !== "live" && "invisible",
         )}
       />
+      {showingCached && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-linear-to-t from-black/50 to-transparent"
+        />
+      )}
       {!hasImage && (
         <div className="absolute inset-0 grid place-items-center px-6 py-12">
           <h2
@@ -77,13 +85,13 @@ export function SceneMonitor({
           </h2>
         </div>
       )}
-      {(useCached || phase === "loading" || phase === "error") && (
+      {(showingCached || phase === "loading" || phase === "error") && (
         <span
           role="status"
           className="absolute inset-x-2 bottom-2 text-center text-[11px] text-white/70"
         >
-          {cached
-            ? "Cached preview"
+          {showingCached
+            ? "Video Preview"
             : phase === "loading"
               ? "Loading preview…"
               : "Preview unavailable · Retrying…"}
