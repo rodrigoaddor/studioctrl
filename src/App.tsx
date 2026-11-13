@@ -5,7 +5,10 @@ import {
   Ellipsis,
   Images,
   EyeOff,
+  Maximize,
+  Minimize,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Link, Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { ErrorNotice } from "./components/error-notice";
 import { AppIcon } from "./components/app-icon";
@@ -34,6 +37,25 @@ export default function App() {
     showHiddenScenes,
   } = useStudio();
   const navigate = useNavigate();
+  const [fullscreen, setFullscreen] = useState(!!document.fullscreenElement);
+  const [fullscreenError, setFullscreenError] = useState<string | null>(null);
+  useEffect(() => {
+    const update = () => setFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", update);
+    return () => document.removeEventListener("fullscreenchange", update);
+  }, []);
+  async function toggleFullscreen() {
+    setFullscreenError(null);
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      } else {
+        await document.documentElement.requestFullscreen();
+      }
+    } catch {
+      setFullscreenError("Could not change fullscreen mode. Please try again.");
+    }
+  }
   function exit() {
     client.disconnect();
     navigate("/", { replace: true });
@@ -108,6 +130,19 @@ export default function App() {
                   >
                     <EyeOff /> Show hidden scenes
                   </DropdownMenuCheckboxItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    disabled={
+                      fullscreen
+                        ? typeof document.exitFullscreen !== "function"
+                        : !document.fullscreenEnabled ||
+                          typeof document.documentElement.requestFullscreen !== "function"
+                    }
+                    onSelect={() => void toggleFullscreen()}
+                  >
+                    {fullscreen ? <Minimize /> : <Maximize />}
+                    {fullscreen ? "Exit fullscreen" : "Fullscreen"}
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </>
@@ -124,6 +159,12 @@ export default function App() {
         </div>
       )}
       {error && <ErrorNotice message={error} onDismiss={client.clearError} />}
+      {!error && fullscreenError && (
+        <ErrorNotice
+          message={fullscreenError}
+          onDismiss={() => setFullscreenError(null)}
+        />
+      )}
       <Routes>
         <Route
           path="/"

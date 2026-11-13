@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import App from "../src/App";
@@ -119,4 +119,76 @@ it("toggles hidden scene visibility from OBS actions", async () => {
   expect(item).toHaveAttribute("aria-checked", "false");
   await userEvent.setup().click(item);
   expect(toggle).toHaveBeenCalledExactlyOnceWith(true);
+});
+
+function mockFullscreen() {
+  let element: Element | null = null;
+  const change = (value: Element | null) => {
+    element = value;
+    document.dispatchEvent(new Event("fullscreenchange"));
+  };
+  const request = vi.fn(async () => change(document.documentElement));
+  const exit = vi.fn(async () => change(null));
+  const properties = [
+    [document, "fullscreenEnabled", { value: true, writable: true }],
+    [document, "fullscreenElement", { get: () => element }],
+    [document.documentElement, "requestFullscreen", { value: request }],
+    [document, "exitFullscreen", { value: exit }],
+  ] as const;
+  for (const [target, key, descriptor] of properties) {
+    const original = Object.getOwnPropertyDescriptor(target, key);
+    Object.defineProperty(target, key, { ...descriptor, configurable: true });
+    fullscreenCleanup.push(() => {
+      if (original) Object.defineProperty(target, key, original);
+      else Reflect.deleteProperty(target, key);
+    });
+  }
+  return { request, exit, change };
+}
+const fullscreenCleanup: (() => void)[] = [];
+afterEach(() => {
+  fullscreenCleanup.splice(0).reverse().forEach((restore) => restore());
+});
+
+it("enters and exits document fullscreen even while OBS is busy", async () => {
+  const { request, exit } = mockFullscreen();
+  vi.mocked(useStudio).mockReturnValue({ client, ...connected, busy: true });
+  render(app("/studio"));
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "OBS actions" }));
+  await user.click(screen.getByRole("menuitem", { name: "Fullscreen", exact: true }));
+  expect(request).toHaveBeenCalledOnce();
+  await user.click(screen.getByRole("button", { name: "OBS actions" }));
+  await user.click(screen.getByRole("menuitem", { name: "Exit fullscreen" }));
+  expect(exit).toHaveBeenCalledOnce();
+});
+
+it("updates the open fullscreen action when the browser exits fullscreen", async () => {
+  const { change } = mockFullscreen();
+  change(document.documentElement);
+  render(app("/studio"));
+  await userEvent.setup().click(screen.getByRole("button", { name: "OBS actions" }));
+  expect(screen.getByRole("menuitem", { name: "Exit fullscreen" })).toBeInTheDocument();
+  act(() => change(null));
+  expect(screen.getByRole("menuitem", { name: "Fullscreen", exact: true })).toBeInTheDocument();
+});
+
+it("disables fullscreen when the browser does not support it", async () => {
+  mockFullscreen();
+  Object.defineProperty(document, "fullscreenEnabled", { value: false });
+  render(app("/studio"));
+  await userEvent.setup().click(screen.getByRole("button", { name: "OBS actions" }));
+  expect(screen.getByRole("menuitem", { name: "Fullscreen", exact: true })).toHaveAttribute("data-disabled");
+});
+
+it("shows dismissible feedback when fullscreen is rejected", async () => {
+  const { request } = mockFullscreen();
+  request.mockRejectedValue(new Error("Permission denied"));
+  render(app("/studio"));
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "OBS actions" }));
+  await user.click(screen.getByRole("menuitem", { name: "Fullscreen", exact: true }));
+  expect(screen.getByRole("alert")).toHaveTextContent("Could not change fullscreen mode");
+  await user.click(screen.getByRole("button", { name: "Dismiss error" }));
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 });
