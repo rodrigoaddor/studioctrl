@@ -233,6 +233,7 @@ it("does not animate Preview or disabled Program previews", () => {
 
 it("opens the remote configuration without changing mode on cancel, then saves per monitor", async () => {
   const user = userEvent.setup();
+  vi.spyOn(remote, "readRemoteSettings").mockReturnValue(remote.emptyRemoteSettings);
   render(<SceneMonitor kind="preview" sceneName="Camera" />);
   await user.click(screen.getByRole("button", { name: "Preview settings" }));
   await user.click(screen.getByRole("menuitemradio", { name: "Remote Preview" }));
@@ -253,6 +254,38 @@ it("opens the remote configuration without changing mode on cancel, then saves p
   expect(screen.getByLabelText("Remote WebRTC stream")).toBeInTheDocument();
 });
 
+it.each(["preview", "program"] as const)("switches the %s monitor to saved Remote Preview directly and keeps configuration separate", async (kind) => {
+  const user = userEvent.setup();
+  remote.saveRemoteSettings(`studio:${kind}`, { ...remote.emptyRemoteSettings, url: "https://media.example/saved" });
+  const start = vi.spyOn(remote, "startRemotePreview").mockReturnValue(vi.fn());
+  render(<SceneMonitor kind={kind} sceneName="Camera" />);
+  const trigger = screen.getByRole("button", { name: `${kind === "preview" ? "Preview" : "Program"} settings` });
+  await user.click(trigger);
+  await user.click(screen.getByRole("menuitemradio", { name: "Remote Preview" }));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(localStorage.getItem(monitorSettingsKey("studio", kind))).toBe("remote");
+  expect(start).toHaveBeenCalledOnce();
+  await user.click(trigger);
+  await user.click(screen.getByRole("menuitemradio", { name: "Remote Preview" }));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(start).toHaveBeenCalledOnce();
+  await user.click(trigger);
+  await user.click(screen.getByRole("menuitemradio", { name: "OBS Preview" }));
+  await user.click(trigger);
+  await user.click(screen.getByRole("menuitem", { name: "Configure Remote Preview…" }));
+  expect(screen.getByLabelText("WebRTC URL", { exact: false })).toHaveValue("https://media.example/saved/whep");
+  expect(localStorage.getItem(monitorSettingsKey("studio", kind))).toBe("obs");
+  await user.keyboard("{Escape}");
+  expect(trigger).toHaveFocus();
+  expect(localStorage.getItem(monitorSettingsKey("studio", kind))).toBe("obs");
+  expect(start).toHaveBeenCalledOnce();
+  trigger.focus();
+  await user.keyboard("{ArrowDown}");
+  await user.click(screen.getByRole("menuitemradio", { name: "Remote Preview" }));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(start).toHaveBeenCalledTimes(2);
+});
+
 it("keeps remote playback through scene changes and restores it with the combined toggle", async () => {
   const user = userEvent.setup();
   remote.saveRemoteSettings("studio:program", { ...remote.emptyRemoteSettings, url: "https://media.example/live" });
@@ -271,7 +304,7 @@ it("keeps remote playback through scene changes and restores it with the combine
   expect(localStorage.getItem(monitorSettingsKey("studio", "program"))).toBe("remote");
   expect(start).toHaveBeenCalledTimes(2);
   await user.click(screen.getByRole("button", { name: "Program settings" }));
-  await user.click(screen.getByRole("menuitemradio", { name: "Remote Preview" }));
+  await user.click(screen.getByRole("menuitem", { name: "Configure Remote Preview…" }));
   expect(screen.getByRole("dialog")).toBeInTheDocument();
   await user.keyboard("{Escape}");
   expect(start).toHaveBeenCalledTimes(2);

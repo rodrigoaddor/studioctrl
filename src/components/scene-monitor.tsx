@@ -10,8 +10,10 @@ import { Button } from "./ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 
@@ -50,8 +52,8 @@ export function SceneMonitor({
   const continuingFade = fade && mode === "obs";
   const label = kind === "preview" ? "Preview" : "Program";
   function select(value: string) {
-    if (value === "remote") { setRemoteOpen(true); return; }
-    if (value !== "none" && value !== "obs") return;
+    if (value === "remote" && !remoteSettings.url) { setRemoteOpen(true); return; }
+    if (value !== "none" && value !== "obs" && value !== "remote") return;
     setMode(value);
   }
   return (
@@ -128,7 +130,7 @@ export function SceneMonitor({
               <Settings />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44" onCloseAutoFocus={(event) => { if (remoteOpen) event.preventDefault(); }}>
+          <DropdownMenuContent align="end" className="w-56" onCloseAutoFocus={(event) => { if (remoteOpen) event.preventDefault(); }}>
             <DropdownMenuRadioGroup value={mode} onValueChange={select}>
               <DropdownMenuRadioItem value="none">
                 No Preview
@@ -136,10 +138,14 @@ export function SceneMonitor({
               <DropdownMenuRadioItem value="obs">
                 OBS Preview
               </DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="remote" onSelect={() => setRemoteOpen(true)}>
+              <DropdownMenuRadioItem value="remote">
                 Remote Preview
               </DropdownMenuRadioItem>
             </DropdownMenuRadioGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => setRemoteOpen(true)}>
+              Configure Remote Preview…
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
