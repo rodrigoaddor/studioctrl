@@ -20,6 +20,16 @@ let screenshotParams: unknown;
 let holdScreenshots: boolean;
 let sceneList: { sceneName: string; sceneIndex: number }[];
 let url: string;
+let mediaActive: boolean;
+let mediaCursor: number;
+let mediaDuration: number | null;
+let mediaState: string;
+let previewItems: Record<string, object[]>;
+let groupItems: Record<string, object[]>;
+let holdSceneItems: boolean;
+let heldSceneReply: (() => void) | undefined;
+let mediaActions: { inputName: string; mediaAction: string }[];
+let rejectMediaAction: boolean;
 function event(eventType: string, eventData = {}) {
   socket.send(
     JSON.stringify({ op: 5, d: { eventType, eventIntent: 1, eventData } }),
@@ -37,6 +47,16 @@ beforeEach(async () => {
   requests = [];
   screenshotParams = undefined;
   holdScreenshots = false;
+  mediaActive = true;
+  mediaCursor = 5000;
+  mediaDuration = 60000;
+  mediaState = "OBS_MEDIA_STATE_PLAYING";
+  previewItems = {};
+  groupItems = {};
+  holdSceneItems = false;
+  heldSceneReply = undefined;
+  mediaActions = [];
+  rejectMediaAction = false;
   // OBS sends its Scenes dock bottom-to-top, with the top scene at the highest index.
   sceneList = ["Slides", "Camera", "Starting"].map((sceneName, sceneIndex) => ({
     sceneName,
@@ -77,6 +97,38 @@ beforeEach(async () => {
       let responseData: object = {};
       let result = true;
       switch (d.requestType) {
+        case "GetInputList":
+          responseData = { inputs: [
+            { inputName: "Clip", inputKind: "ffmpeg_source", unversionedInputKind: "ffmpeg_source" },
+            { inputName: "Hidden clip", inputKind: "vlc_source" },
+            { inputName: "Camera", inputKind: "av_capture_input" },
+          ] };
+          break;
+        case "GetSourceActive":
+          responseData = { videoActive: mediaActive && (d.requestData.sourceName === "Clip"), videoShowing: true };
+          break;
+        case "GetSceneItemList":
+          responseData = { sceneItems: previewItems[d.requestData.sceneName] ?? [] };
+          break;
+        case "GetGroupSceneItemList":
+          responseData = { sceneItems: groupItems[d.requestData.sceneName] ?? [] };
+          break;
+        case "GetMediaInputStatus":
+          responseData = { mediaState, mediaDuration, mediaCursor };
+          break;
+        case "SetMediaInputCursor":
+          mediaCursor = d.requestData.mediaCursor;
+          break;
+        case "TriggerMediaInputAction":
+          mediaActions.push(d.requestData);
+          if (rejectMediaAction) { result = false; break; }
+          switch (d.requestData.mediaAction) {
+            case "OBS_WEBSOCKET_MEDIA_INPUT_ACTION_PLAY": mediaState = "OBS_MEDIA_STATE_PLAYING"; break;
+            case "OBS_WEBSOCKET_MEDIA_INPUT_ACTION_PAUSE": mediaState = "OBS_MEDIA_STATE_PAUSED"; break;
+            case "OBS_WEBSOCKET_MEDIA_INPUT_ACTION_STOP": mediaState = "OBS_MEDIA_STATE_STOPPED"; break;
+            case "OBS_WEBSOCKET_MEDIA_INPUT_ACTION_RESTART": mediaState = "OBS_MEDIA_STATE_PLAYING"; mediaCursor = 0; break;
+          }
+          break;
         case "GetSourceScreenshot":
           screenshotParams = d.requestData;
           if (holdScreenshots) return;
@@ -143,7 +195,7 @@ beforeEach(async () => {
           if (!deferVideoEnd) event("SceneTransitionVideoEnded");
           break;
       }
-      ws.send(
+      const reply = () => ws.send(
         JSON.stringify({
           op: 7,
           d: {
@@ -152,12 +204,14 @@ beforeEach(async () => {
             requestStatus: {
               result,
               code: result ? 100 : 500,
-              comment: result ? undefined : "Transition failed",
+              comment: result ? undefined : d.requestType === "TriggerMediaInputAction" ? "Playback failed" : "Transition failed",
             },
             responseData,
           },
         }),
       );
+      if (d.requestType === "GetSceneItemList" && holdSceneItems) heldSceneReply = reply;
+      else reply();
     });
   });
   client = new StudioClient();
@@ -377,4 +431,185 @@ it("leaves fixed-duration transitions unchanged", async () => {
   await client.setTransitionDuration(750);
   expect(client.getSnapshot().duration).toBeNull();
   expect(requests).not.toContain("SetCurrentSceneTransitionDuration");
+});
+
+it("discovers only active media, seeks in milliseconds, and keeps scene selections unchanged", async () => {
+  await connect();
+  await client.enableStudio();
+  expect(await client.getActiveMedia()).toEqual([
+    { name: "Clip", preview: false, program: true, state: "OBS_MEDIA_STATE_PLAYING", duration: 60000, cursor: 5000 },
+  ]);
+  expect(requests.filter((r) => r === "GetMediaInputStatus")).toHaveLength(1);
+  expect(await client.seekMedia("Clip", 25000)).toBe(true);
+  expect(mediaCursor).toBe(25000);
+  expect(client.getSnapshot()).toMatchObject({ preview: "Camera", program: "Starting", busy: false });
+  expect(requests).not.toContain("TriggerStudioModeTransition");
+  mediaActive = false;
+  expect(await client.getActiveMedia()).toEqual([]);
+});
+
+it("guards media seeking against invalid positions, inactive sources, and unavailable playback", async () => {
+  await connect();
+  expect(await client.seekMedia("Clip", 1000)).toBe(false);
+  expect(requests).not.toContain("SetMediaInputCursor");
+  await client.enableStudio();
+  for (const cursor of [-1, 60001, NaN, 1.5]) expect(await client.seekMedia("Clip", cursor)).toBe(false);
+  mediaActive = false;
+  await client.seekMedia("Clip", 1000);
+  mediaActive = true;
+  mediaDuration = null;
+  await client.seekMedia("Clip", 1000);
+  mediaDuration = 60000;
+  mediaState = "OBS_MEDIA_STATE_STOPPED";
+  await client.seekMedia("Clip", 1000);
+  expect(requests).not.toContain("SetMediaInputCursor");
+  mediaState = "OBS_MEDIA_STATE_PAUSED";
+  await client.seekMedia("Clip", 1000);
+  expect(mediaCursor).toBe(1000);
+});
+
+it("sends exact near-end positions for an 18-second clip", async () => {
+  mediaDuration = 18000;
+  mediaCursor = 15000;
+  await connect();
+  await client.enableStudio();
+  for (const target of [16000, 17000, 18000]) {
+    expect(await client.seekMedia("Clip", target)).toBe(true);
+    expect(mediaCursor).toBe(target);
+    expect((await client.getActiveMedia())[0].cursor).toBe(target);
+  }
+});
+
+it("finds Preview media through enabled nested scenes/groups and deduplicates shared sources", async () => {
+  previewItems.Camera = [
+    { sourceName: "Nested", sourceType: "OBS_SOURCE_TYPE_SCENE", sceneItemEnabled: true },
+    { sourceName: "Hidden clip", sceneItemEnabled: false },
+    { sourceName: "Disabled scene", sourceType: "OBS_SOURCE_TYPE_SCENE", sceneItemEnabled: false },
+  ];
+  previewItems.Nested = [
+    { sourceName: "Clips", isGroup: true, sceneItemEnabled: true },
+    { sourceName: "Camera", sourceType: "OBS_SOURCE_TYPE_SCENE", sceneItemEnabled: true },
+    { sourceName: "Clip", sceneItemEnabled: true },
+  ];
+  previewItems["Disabled scene"] = [{ sourceName: "Hidden clip", sceneItemEnabled: true }];
+  groupItems.Clips = [{ sourceName: "Clip", sceneItemEnabled: true }];
+  await connect();
+  await client.enableStudio();
+  expect(await client.getActiveMedia()).toEqual([
+    { name: "Clip", preview: true, program: true, state: mediaState, duration: 60000, cursor: 5000 },
+  ]);
+  expect(requests.filter((r) => r === "GetMediaInputStatus")).toHaveLength(1);
+  mediaActive = false;
+  expect(await client.getActiveMedia()).toEqual([
+    { name: "Clip", preview: true, program: false, state: mediaState, duration: 60000, cursor: 5000 },
+  ]);
+  await client.seekMedia("Clip", 30000);
+  expect(mediaCursor).toBe(30000);
+  expect(client.getSnapshot()).toMatchObject({ preview: "Camera", program: "Starting" });
+  expect(requests).not.toContain("TriggerStudioModeTransition");
+  preview = "Slides";
+  event("CurrentPreviewSceneChanged", { sceneName: preview });
+  await expect.poll(() => client.getSnapshot().preview).toBe("Slides");
+  expect(await client.getActiveMedia()).toEqual([]);
+  await client.seekMedia("Clip", 20000);
+  expect(mediaCursor).toBe(30000);
+});
+
+it("does not include media that is only showing in an unrelated OBS window", async () => {
+  mediaActive = false;
+  await connect();
+  await client.enableStudio();
+  expect(await client.getActiveMedia()).toEqual([]);
+  await client.seekMedia("Hidden clip", 1000);
+  expect(requests).not.toContain("SetMediaInputCursor");
+});
+
+it("discards an in-flight Preview seek when the selected scene changes", async () => {
+  previewItems.Camera = [{ sourceName: "Clip", sceneItemEnabled: true }];
+  mediaActive = false;
+  await connect();
+  await client.enableStudio();
+  holdSceneItems = true;
+  const seek = client.seekMedia("Clip", 30000);
+  await expect.poll(() => heldSceneReply).toBeDefined();
+  preview = "Slides";
+  event("CurrentPreviewSceneChanged", { sceneName: preview });
+  await expect.poll(() => client.getSnapshot().preview).toBe("Slides");
+  heldSceneReply!();
+  expect(await seek).toBe(false);
+  expect(requests).not.toContain("SetMediaInputCursor");
+});
+
+it("pauses, resumes, stops, and restarts Program media with explicit OBS actions", async () => {
+  await connect();
+  await client.enableStudio();
+  await client.setMediaPlayback("Clip", "pause");
+  expect(mediaState).toBe("OBS_MEDIA_STATE_PAUSED");
+  await client.setMediaPlayback("Clip", "pause");
+  expect(mediaActions).toHaveLength(1);
+  await client.setMediaPlayback("Clip", "play");
+  expect(mediaCursor).toBe(5000);
+  await client.setMediaPlayback("Clip", "stop");
+  expect(mediaState).toBe("OBS_MEDIA_STATE_STOPPED");
+  await client.setMediaPlayback("Clip", "play");
+  expect(mediaCursor).toBe(0);
+  mediaState = "OBS_MEDIA_STATE_ENDED";
+  await client.setMediaPlayback("Clip", "play");
+  expect(mediaActions).toEqual(["PAUSE", "PLAY", "STOP", "RESTART", "RESTART"].map((action) => ({
+    inputName: "Clip", mediaAction: `OBS_WEBSOCKET_MEDIA_INPUT_ACTION_${action}`,
+  })));
+  expect(client.getSnapshot()).toMatchObject({ preview: "Camera", program: "Starting", busy: false });
+  expect(requests).not.toContain("TriggerStudioModeTransition");
+});
+
+it("controls Preview-only media without requiring a seekable duration", async () => {
+  previewItems.Camera = [{ sourceName: "Clip", sceneItemEnabled: true }];
+  mediaActive = false;
+  mediaDuration = null;
+  await connect();
+  await client.enableStudio();
+  await client.setMediaPlayback("Clip", "pause");
+  await client.setMediaPlayback("Clip", "play");
+  await client.setMediaPlayback("Clip", "stop");
+  expect(mediaActions).toHaveLength(3);
+  expect(client.getSnapshot()).toMatchObject({ preview: "Camera", program: "Starting" });
+});
+
+it("guards playback actions when unavailable or busy and reports request errors", async () => {
+  await client.setMediaPlayback("Clip", "pause");
+  await connect();
+  await client.setMediaPlayback("Clip", "pause");
+  expect(mediaActions).toHaveLength(0);
+  await client.enableStudio();
+  mediaActive = false;
+  await client.setMediaPlayback("Clip", "pause");
+  mediaActive = true;
+  mediaState = "OBS_MEDIA_STATE_ERROR";
+  await client.setMediaPlayback("Clip", "play");
+  await client.setMediaPlayback("Clip", "stop");
+  expect(mediaActions).toHaveLength(0);
+  mediaState = "OBS_MEDIA_STATE_PLAYING";
+  deferVideoEnd = true;
+  await client.transition("Fade");
+  await client.setMediaPlayback("Clip", "stop");
+  expect(mediaActions).toHaveLength(0);
+  event("SceneTransitionVideoEnded");
+  await expect.poll(() => client.getSnapshot().syncing || client.getSnapshot().busy).toBe(false);
+  rejectMediaAction = true;
+  await client.setMediaPlayback("Clip", "stop");
+  expect(client.getSnapshot()).toMatchObject({ busy: false, error: "Playback failed" });
+});
+
+it("discards pending playback commands after a collection change", async () => {
+  await connect();
+  await client.enableStudio();
+  holdSceneItems = true;
+  const action = client.setMediaPlayback("Clip", "stop");
+  await expect.poll(() => heldSceneReply).toBeDefined();
+  const epoch = client.getSnapshot().previewEpoch;
+  event("CurrentSceneCollectionChanging");
+  await expect.poll(() => client.getSnapshot().previewEpoch).toBe(epoch + 1);
+  heldSceneReply!();
+  await action;
+  expect(mediaActions).toHaveLength(0);
 });

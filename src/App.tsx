@@ -30,7 +30,7 @@ export default function App() {
           className="flex items-baseline justify-self-center font-heading text-base font-extrabold tracking-[-0.5px]"
         >
           <span className="mr-2 grid place-items-center self-center text-foreground">
-            <AppIcon width={20} height={20} />
+            <AppIcon width={24} height={24} />
           </span>
           <span className="text-lg">
             studio<span className="ml-0.5 text-xs font-bold">CTRL</span>

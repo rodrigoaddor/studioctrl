@@ -4,6 +4,15 @@ import type { Profile } from "./profiles";
 export const MIN_TRANSITION_DURATION = 50;
 export const MAX_TRANSITION_DURATION = 20_000;
 
+export interface ActiveMedia {
+  name: string;
+  preview: boolean;
+  program: boolean;
+  state: string;
+  duration: number | null;
+  cursor: number | null;
+}
+
 export interface StudioState {
   status: "disconnected" | "connecting" | "connected";
   profile: Profile | null;
@@ -250,6 +259,104 @@ export class StudioClient {
       });
     this.screenshotRequests.set(sceneName, request);
     return request;
+  };
+  private async getPreviewSources(obs: OBSWebSocket, epoch: number) {
+    const sources = new Set<string>();
+    const visited = new Set<string>();
+    const current = () => this.obs === obs && this.state.previewEpoch === epoch && this.state.studio;
+    const visit = async (sceneName: string, group = false): Promise<void> => {
+      const key = `${group ? "group" : "scene"}:${sceneName}`;
+      if (!current() || visited.has(key)) return;
+      visited.add(key);
+      const { sceneItems } = await obs.call(
+        group ? "GetGroupSceneItemList" : "GetSceneItemList",
+        { sceneName },
+      );
+      for (const item of sceneItems) {
+        if (!current()) return;
+        if (!item.sceneItemEnabled) continue;
+        const name = String(item.sourceName);
+        if (item.isGroup) await visit(name, true);
+        else if (item.sourceType === "OBS_SOURCE_TYPE_SCENE") await visit(name);
+        else sources.add(name);
+      }
+    };
+    const { sceneName } = await obs.call("GetCurrentPreviewScene");
+    await visit(sceneName);
+    return sources;
+  }
+  getActiveMedia = async (): Promise<ActiveMedia[]> => {
+    const obs = this.obs;
+    const epoch = this.state.previewEpoch;
+    const revision = this.revision;
+    if (!obs || this.state.status !== "connected" || !this.state.studio)
+      return [];
+    const [{ inputs }, previewSources] = await Promise.all([
+      obs.call("GetInputList"),
+      this.getPreviewSources(obs, epoch),
+    ]);
+    const media: ActiveMedia[] = [];
+    for (const input of inputs) {
+      if (this.obs !== obs || this.state.previewEpoch !== epoch) return [];
+      const kind = input.unversionedInputKind ?? input.inputKind;
+      if (kind !== "ffmpeg_source" && kind !== "vlc_source") continue;
+      const name = String(input.inputName);
+      const { videoActive } = await obs.call("GetSourceActive", { sourceName: name });
+      if (this.obs !== obs || this.state.previewEpoch !== epoch) return [];
+      const preview = previewSources.has(name);
+      if (!videoActive && !preview) continue;
+      const status = await obs.call("GetMediaInputStatus", { inputName: name });
+      media.push({ name, preview, program: videoActive, state: status.mediaState, duration: status.mediaDuration, cursor: status.mediaCursor });
+    }
+    if (this.obs !== obs || this.state.previewEpoch !== epoch || revision !== this.revision || !this.state.studio)
+      return [];
+    return media;
+  };
+  seekMedia = (inputName: string, mediaCursor: number) => {
+    const epoch = this.state.previewEpoch;
+    const revision = this.revision;
+    let applied = false;
+    return this.command(async (obs) => {
+      const [active, status, previewSources] = await Promise.all([
+        obs.call("GetSourceActive", { sourceName: inputName }),
+        obs.call("GetMediaInputStatus", { inputName }),
+        this.getPreviewSources(obs, epoch),
+      ]);
+      if (this.obs !== obs || this.state.previewEpoch !== epoch || revision !== this.revision) return;
+      if ((!active.videoActive && !previewSources.has(inputName)) || !Number.isInteger(mediaCursor) || mediaCursor < 0 ||
+          !Number.isFinite(status.mediaDuration) || status.mediaDuration <= 0 ||
+          mediaCursor > status.mediaDuration ||
+          !["OBS_MEDIA_STATE_PLAYING", "OBS_MEDIA_STATE_PAUSED"].includes(status.mediaState))
+        throw new Error("This media source is no longer available for seeking.");
+      await obs.call("SetMediaInputCursor", { inputName, mediaCursor });
+      applied = this.obs === obs && this.state.previewEpoch === epoch;
+    }).then(() => applied);
+  };
+  setMediaPlayback = (inputName: string, action: "play" | "pause" | "stop") => {
+    const epoch = this.state.previewEpoch;
+    const revision = this.revision;
+    return this.command(async (obs) => {
+      const [active, status, previewSources] = await Promise.all([
+        obs.call("GetSourceActive", { sourceName: inputName }),
+        obs.call("GetMediaInputStatus", { inputName }),
+        this.getPreviewSources(obs, epoch),
+      ]);
+      if (this.obs !== obs || this.state.previewEpoch !== epoch || revision !== this.revision) return;
+      if (!active.videoActive && !previewSources.has(inputName))
+        throw new Error("This media source is no longer available for playback control.");
+      const state = status.mediaState;
+      let mediaAction: string;
+      if (action === "play" && ["OBS_MEDIA_STATE_STOPPED", "OBS_MEDIA_STATE_ENDED"].includes(state))
+        mediaAction = "OBS_WEBSOCKET_MEDIA_INPUT_ACTION_RESTART";
+      else if (action === "play" && state === "OBS_MEDIA_STATE_PAUSED")
+        mediaAction = "OBS_WEBSOCKET_MEDIA_INPUT_ACTION_PLAY";
+      else if (action === "pause" && state === "OBS_MEDIA_STATE_PLAYING")
+        mediaAction = "OBS_WEBSOCKET_MEDIA_INPUT_ACTION_PAUSE";
+      else if (action === "stop" && ["OBS_MEDIA_STATE_PLAYING", "OBS_MEDIA_STATE_PAUSED", "OBS_MEDIA_STATE_OPENING", "OBS_MEDIA_STATE_BUFFERING"].includes(state))
+        mediaAction = "OBS_WEBSOCKET_MEDIA_INPUT_ACTION_STOP";
+      else return;
+      await obs.call("TriggerMediaInputAction", { inputName, mediaAction });
+    });
   };
   private async command(
     action: (obs: OBSWebSocket) => Promise<unknown>,

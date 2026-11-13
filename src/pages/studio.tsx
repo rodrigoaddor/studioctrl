@@ -1,6 +1,7 @@
 import { Clapperboard, LoaderCircle } from "lucide-react";
 import { Navigate } from "react-router-dom";
 import { SceneButton } from "../components/scene-button";
+import { MediaSeekers } from "../components/media-seekers";
 import { SceneMonitor } from "../components/scene-monitor";
 import { TransitionControl } from "../components/transition-control";
 import { Button } from "../components/ui/button";
@@ -17,6 +18,7 @@ export function Studio() {
     preview,
     busy,
     syncing,
+    previewEpoch,
   } = useStudio();
   if (status !== "connected") return <Navigate to="/" replace />;
   const disabled = busy || syncing;
@@ -80,6 +82,7 @@ export function Studio() {
               </p>
             )}
           </section>
+          <MediaSeekers key={previewEpoch} />
         </>
       )}
     </main>
