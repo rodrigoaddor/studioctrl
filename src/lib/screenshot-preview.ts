@@ -61,6 +61,7 @@ export async function drawScreenshot(
   canvas: HTMLCanvasElement,
   data: string,
   signal: AbortSignal,
+  rejectBlack = false,
 ) {
   const image = new Image();
   image.decoding = "async";
@@ -82,9 +83,29 @@ export async function drawScreenshot(
       canvas.width = image.naturalWidth;
       canvas.height = image.naturalHeight;
     }
+    if (rejectBlack) {
+      const sample = document.createElement("canvas");
+      sample.width = 32;
+      sample.height = 18;
+      const sampleContext = sample.getContext("2d", {
+        willReadFrequently: true,
+      });
+      if (sampleContext) {
+        sampleContext.drawImage(image, 0, 0, 32, 18);
+        const pixels = sampleContext.getImageData(0, 0, 32, 18).data;
+        if (!hasVisiblePixels(pixels)) throw new Error("Black preview frame");
+      }
+    }
     context.drawImage(image, 0, 0);
   } finally {
     signal.removeEventListener("abort", abort);
     image.src = "";
   }
+}
+
+export function hasVisiblePixels(pixels: Uint8ClampedArray) {
+  let lit = 0;
+  for (let i = 0; i < pixels.length; i += 4)
+    if (Math.max(pixels[i], pixels[i + 1], pixels[i + 2]) > 16) lit++;
+  return lit / (pixels.length / 4) > 0.01;
 }

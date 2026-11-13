@@ -11,6 +11,7 @@ export function useObsPreview(
   sceneName: string | null,
   enabled: boolean,
   epoch: number,
+  rejectBlack = false,
 ) {
   const source = sceneName ? `${epoch}:${sceneName}` : null;
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -26,7 +27,7 @@ export function useObsPreview(
     const target = canvas.current;
     return startScreenshotPreview({
       capture: () => client.getScreenshot(sceneName),
-      draw: (data, signal) => drawScreenshot(target, data, signal),
+      draw: (data, signal) => drawScreenshot(target, data, signal, rejectBlack),
       onPhase: (phase) =>
         setState((previous) =>
           previous.source === source && previous.phase === phase
@@ -35,7 +36,7 @@ export function useObsPreview(
         ),
       visible: () => !document.hidden,
     });
-  }, [client, sceneName, enabled, source]);
+  }, [client, sceneName, enabled, source, rejectBlack]);
   const phase =
     !enabled || !sceneName
       ? "idle"

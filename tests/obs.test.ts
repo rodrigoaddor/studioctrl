@@ -1,13 +1,24 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WebSocketServer, WebSocket } from "ws";
 import { createHash } from "node:crypto";
 import { StudioClient } from "../src/lib/obs";
 
+import { usablePreview } from "../src/lib/scene-previews";
+import { readPreview, writePreview } from "../src/lib/preview-cache";
+vi.mock("../src/lib/scene-previews", async (original) => ({
+  ...(await original<typeof import("../src/lib/scene-previews")>()),
+  usablePreview: vi.fn(async () => true),
+}));
+vi.mock("../src/lib/preview-cache", () => ({
+  readPreview: vi.fn(async () => undefined),
+  writePreview: vi.fn(async () => {}),
+}));
 const hash = (s: string) => createHash("sha256").update(s).digest("base64");
 let server: WebSocketServer;
 let client: StudioClient;
 let socket: WebSocket;
 let studio: boolean;
+let collectionName: string;
 let preview: string;
 let program: string;
 let transition: string;
@@ -36,6 +47,10 @@ function event(eventType: string, eventData = {}) {
   );
 }
 beforeEach(async () => {
+  vi.mocked(usablePreview).mockResolvedValue(true);
+  vi.mocked(readPreview).mockResolvedValue(undefined);
+  vi.mocked(writePreview).mockClear();
+  collectionName = "Collection A";
   studio = false;
   preview = "Camera";
   program = "Starting";
@@ -114,7 +129,9 @@ beforeEach(async () => {
           responseData = { sceneItems: groupItems[d.requestData.sceneName] ?? [] };
           break;
         case "GetMediaInputStatus":
-          responseData = { mediaState, mediaDuration, mediaCursor };
+          responseData = d.requestData.inputName === "Unavailable camera"
+            ? { mediaState: "OBS_MEDIA_STATE_ENDED", mediaDuration: null, mediaCursor: null }
+            : { mediaState, mediaDuration, mediaCursor };
           break;
         case "SetMediaInputCursor":
           mediaCursor = d.requestData.mediaCursor;
@@ -133,6 +150,9 @@ beforeEach(async () => {
           screenshotParams = d.requestData;
           if (holdScreenshots) return;
           responseData = { imageData: "data:image/jpeg;base64,frame" };
+          break;
+        case "GetSceneCollectionList":
+          responseData = { currentSceneCollectionName: collectionName, sceneCollections: ["Collection A", "Collection B"] };
           break;
         case "GetStudioModeEnabled":
           responseData = { studioModeEnabled: studio };
@@ -612,4 +632,91 @@ it("discards pending playback commands after a collection change", async () => {
   heldSceneReply!();
   await action;
   expect(mediaActions).toHaveLength(0);
+});
+
+it("caches natural media frames after 5s without seeking and reuses them until explicit generation", async () => {
+  previewItems.Camera = [
+    { sourceName: "Clip", inputKind: "ffmpeg_source", sceneItemEnabled: true },
+  ];
+  mediaCursor = 1000;
+  await connect();
+  await client.enableStudio();
+  await client.collectPreviews();
+  expect(client.getSnapshot().thumbnails).toEqual({
+    Starting: "data:image/jpeg;base64,frame",
+  });
+  expect(client.getSnapshot().previewReady).toBeNull();
+  expect(requests).not.toContain("SetMediaInputCursor");
+  mediaCursor = 5200;
+  await client.collectPreviews();
+  expect(client.getSnapshot().thumbnails.Camera).toBe(
+    "data:image/jpeg;base64,frame",
+  );
+  expect(client.getSnapshot().previewReady).toBe("Camera");
+  const count = requests.filter(
+    (type) => type === "GetSourceScreenshot",
+  ).length;
+  await client.collectPreviews();
+  expect(
+    requests.filter((type) => type === "GetSourceScreenshot"),
+  ).toHaveLength(count);
+  expect(writePreview).toHaveBeenCalled();
+  mediaCursor = 0;
+  await client.collectPreviews();
+  expect(client.getSnapshot().previewReady).toBeNull();
+  expect(client.getSnapshot().thumbnails.Camera).toBeTruthy();
+});
+it("rejects black candidates and clears session images on disconnect", async () => {
+  vi.mocked(usablePreview).mockResolvedValue(false);
+  await connect();
+  await client.enableStudio();
+  await client.collectPreviews();
+  expect(client.getSnapshot().thumbnails).toEqual({});
+  vi.mocked(usablePreview).mockResolvedValue(true);
+  await client.collectPreviews();
+  expect(client.getSnapshot().thumbnails.Camera).toBeTruthy();
+  client.disconnect();
+  expect(client.getSnapshot().thumbnails).toEqual({});
+});
+it("hydrates persisted thumbnails for this endpoint, collection, and scene", async () => {
+  vi.mocked(readPreview).mockResolvedValue("data:image/jpeg;base64,saved");
+  await connect();
+  await expect
+    .poll(() => client.getSnapshot().thumbnails.Camera)
+    .toBe("data:image/jpeg;base64,saved");
+  expect(readPreview).toHaveBeenCalledWith(
+    JSON.stringify([url, "Collection A", "Camera"]),
+  );
+});
+
+it("isolates same-name scene thumbnails after changing collections", async () => {
+  vi.mocked(readPreview).mockResolvedValue("data:image/jpeg;base64,collection-a");
+  await connect();
+  await expect.poll(() => client.getSnapshot().thumbnails.Camera).toBe("data:image/jpeg;base64,collection-a");
+  vi.mocked(readPreview).mockResolvedValue(undefined);
+  const epoch = client.getSnapshot().previewEpoch;
+  event("CurrentSceneCollectionChanging");
+  await expect.poll(() => client.getSnapshot().previewEpoch).toBe(epoch + 1);
+  expect(client.getSnapshot().thumbnails).toEqual({});
+  collectionName = "Collection B";
+  event("CurrentSceneCollectionChanged");
+  await expect.poll(() => client.getSnapshot().scenes.length).toBe(3);
+  await expect.poll(() => vi.mocked(readPreview).mock.calls.some(([key]) => key === JSON.stringify([url, "Collection B", "Camera"]))).toBe(true);
+  expect(client.getSnapshot().thumbnails).toEqual({});
+});
+
+it("caches natural playback from an available clip despite an unavailable camera", async () => {
+  previewItems.Camera = [
+    { sourceName: "Unavailable camera", inputKind: "ffmpeg_source", sceneItemEnabled: true },
+    { sourceName: "Clip", inputKind: "ffmpeg_source", sceneItemEnabled: true },
+  ];
+  mediaCursor = 1000;
+  await connect(); await client.enableStudio(); await client.collectPreviews();
+  expect(client.getSnapshot().thumbnails.Camera).toBeUndefined();
+  mediaCursor = 5200;
+  await client.collectPreviews();
+  expect(client.getSnapshot().thumbnails.Camera).toBe("data:image/jpeg;base64,frame");
+  expect(client.getSnapshot().previewReady).toBe("Camera");
+  expect(requests).not.toContain("SetMediaInputCursor");
+  expect(requests).not.toContain("TriggerMediaInputAction");
 });

@@ -119,3 +119,30 @@ it("moves the scene name into the overlay while live and restores the fallback o
   expect(screen.getByRole("heading", { name: "Camera" })).toBeInTheDocument();
   expect(screen.getByText("Preview", { exact: true })).toBeInTheDocument();
 });
+
+it("uses a cached media image before useful playback and returns to live when ready", () => {
+  localStorage.setItem(monitorSettingsKey("studio", "preview"), "obs");
+  const capture = vi.spyOn(client, "getScreenshot");
+  const state = {
+    ...vi.mocked(useStudio).getMockImplementation()!(),
+    thumbnails: { Camera: "data:image/jpeg;base64,saved" },
+  };
+  vi.mocked(useStudio).mockReturnValue(state);
+  const { rerender } = render(
+    <SceneMonitor kind="preview" sceneName="Camera" />,
+  );
+  expect(screen.getByAltText("Cached preview of Camera")).toBeInTheDocument();
+  expect(screen.getByText("Cached preview")).toBeInTheDocument();
+  expect(capture).not.toHaveBeenCalled();
+  vi.spyOn(screenshots, "startScreenshotPreview").mockImplementation(
+    ({ onPhase }) => {
+      onPhase("live");
+      return vi.fn();
+    },
+  );
+  vi.mocked(useStudio).mockReturnValue({ ...state, previewReady: "Camera" });
+  rerender(<SceneMonitor kind="preview" sceneName="Camera" />);
+  expect(
+    screen.queryByAltText("Cached preview of Camera"),
+  ).not.toBeInTheDocument();
+});

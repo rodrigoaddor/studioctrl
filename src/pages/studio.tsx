@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Clapperboard, LoaderCircle } from "lucide-react";
 import { Navigate } from "react-router-dom";
 import { SceneButton } from "../components/scene-button";
@@ -19,14 +20,32 @@ export function Studio() {
     busy,
     syncing,
     previewEpoch,
+    thumbnails,
+    generating,
   } = useStudio();
+  useEffect(() => {
+    if (status !== "connected" || !studio) return;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
+    async function collect() {
+      if (!document.hidden) await client.collectPreviews();
+      if (!stopped) timer = setTimeout(() => void collect(), 1000);
+    }
+    void collect();
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+    };
+  }, [client, status, studio, previewEpoch]);
   if (status !== "connected") return <Navigate to="/" replace />;
-  const disabled = busy || syncing;
+  const disabled = busy || syncing || !!generating;
   return (
     <main className="mx-auto w-[calc(100%-3rem)] max-w-7xl py-6 max-[720px]:w-[calc(100%-2rem)] max-[720px]:py-4">
       {!studio ? (
         <section className="border border-border p-6">
-          <h2 className="font-heading m-0 text-sm font-medium">Studio Mode is disabled</h2>
+          <h2 className="font-heading m-0 text-sm font-medium">
+            Studio Mode is disabled
+          </h2>
           <p className="mt-2 text-xs leading-[1.6] text-muted-foreground">
             Enable Studio Mode to control Preview and transitions.
           </p>
@@ -67,6 +86,7 @@ export function Studio() {
                   <SceneButton
                     key={scene}
                     name={scene}
+                    image={thumbnails[scene]}
                     isPreview={preview === scene}
                     isProgram={program === scene}
                     disabled={disabled}

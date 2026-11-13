@@ -68,9 +68,7 @@ it("exits the active session and returns to connections", async () => {
 it("redirects the connections route to the active studio", () => {
   render(app("/"));
   expect(screen.getByLabelText("Current route")).toHaveTextContent("/studio");
-  expect(
-    screen.getByText("Connected to Main studio"),
-  ).toBeInTheDocument();
+  expect(screen.getByText("Connected to Main studio")).toBeInTheDocument();
   expect(
     screen.queryByRole("button", { name: "Add connection" }),
   ).not.toBeInTheDocument();
@@ -83,20 +81,32 @@ it("keeps the brand link in the studio while connected", async () => {
   expect(screen.getByLabelText("Current route")).toHaveTextContent("/studio");
 });
 
-it("keeps the refresh icon mounted without spinning or dimming during automatic synchronization", async () => {
+it("keeps the actions trigger stable during synchronization and blocks refresh", async () => {
   const refresh = vi.spyOn(client, "refresh").mockResolvedValue(undefined);
   const { rerender } = render(app("/studio"));
-  const button = screen.getByRole("button", { name: "Refresh OBS state" });
+  const button = screen.getByRole("button", { name: "OBS actions" });
   const icon = button.querySelector("svg");
   vi.mocked(useStudio).mockReturnValue({ client, ...connected, syncing: true });
   rerender(app("/studio"));
-  expect(screen.getByRole("button", { name: "Refresh OBS state" })).toBe(
-    button,
-  );
+  expect(screen.getByRole("button", { name: "OBS actions" })).toBe(button);
   expect(button.querySelector("svg")).toBe(icon);
   expect(icon).not.toHaveClass("animate-spin");
-  expect(button).not.toBeDisabled();
-  expect(button).toHaveAttribute("aria-disabled", "true");
-  await userEvent.setup().click(button);
+  button.focus();
+  await userEvent.setup().keyboard("{ArrowDown}");
+  expect(
+    screen.getByRole("menuitem", { name: "Refresh OBS state" }),
+  ).toHaveAttribute("data-disabled");
+  expect(
+    screen.getByRole("menuitem", { name: "Generate Previews" }),
+  ).toHaveAttribute("data-disabled");
   expect(refresh).not.toHaveBeenCalled();
+});
+it("refreshes from the actions dropdown", async () => {
+  const refresh = vi.spyOn(client, "refresh").mockResolvedValue(undefined);
+  render(app("/studio"));
+  screen.getByRole("button", { name: "OBS actions" }).focus();
+  const user = userEvent.setup();
+  await user.keyboard("{ArrowDown}");
+  await user.click(screen.getByRole("menuitem", { name: "Refresh OBS state" }));
+  expect(refresh).toHaveBeenCalledOnce();
 });

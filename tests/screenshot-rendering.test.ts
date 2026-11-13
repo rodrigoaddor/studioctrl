@@ -46,3 +46,27 @@ it("decodes the next frame before replacing the canvas and ignores obsolete deco
   await outdated;
   expect(drawImage).toHaveBeenCalledOnce();
 });
+
+it("rejects black Preview frames while allowing black Program frames", async () => {
+  class Frame {
+    src = "";
+    decoding = "";
+    naturalWidth = 640;
+    naturalHeight = 360;
+    decode = async () => {};
+  }
+  vi.stubGlobal("Image", Frame);
+  vi.spyOn(document, "hidden", "get").mockReturnValue(false);
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+    drawImage: vi.fn(),
+    getImageData: () => ({ data: new Uint8ClampedArray(32 * 18 * 4) }),
+  } as unknown as CanvasRenderingContext2D);
+  const canvas = document.createElement("canvas");
+  const drawImage = vi.fn();
+  Object.defineProperty(canvas, "getContext", { value: () => ({ drawImage }) });
+  const signal = new AbortController().signal;
+  await expect(drawScreenshot(canvas, "black", signal, true)).rejects.toThrow("Black preview frame");
+  expect(drawImage).not.toHaveBeenCalled();
+  await drawScreenshot(canvas, "black", signal);
+  expect(drawImage).toHaveBeenCalledOnce();
+});

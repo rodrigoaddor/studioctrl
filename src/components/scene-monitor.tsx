@@ -19,14 +19,29 @@ export function SceneMonitor({
   kind: "preview" | "program";
   sceneName: string | null;
 }) {
-  const { client, profile, status, studio, previewEpoch } = useStudio();
+  const {
+    client,
+    profile,
+    status,
+    studio,
+    previewEpoch,
+    thumbnails,
+    previewReady,
+  } = useStudio();
   const [mode, setMode] = useMonitorMode(profile?.id ?? "default", kind);
+  const cached =
+    kind === "preview" && mode === "obs" && sceneName
+      ? thumbnails[sceneName]
+      : undefined;
+  const useCached = !!cached && previewReady !== sceneName;
   const { canvas, phase } = useObsPreview(
     client,
     sceneName,
-    mode === "obs" && status === "connected" && studio,
+    mode === "obs" && status === "connected" && studio && !useCached,
     previewEpoch,
+    kind === "preview",
   );
+  const hasImage = phase === "live" || !!cached;
   const label = kind === "preview" ? "Preview" : "Program";
   function select(value: string) {
     if (value !== "none" && value !== "obs") return;
@@ -37,6 +52,13 @@ export function SceneMonitor({
       aria-label={`${label} monitor`}
       className="relative aspect-video w-full min-w-0 overflow-hidden border border-border bg-black text-white"
     >
+      {cached && phase !== "live" && (
+        <img
+          src={cached}
+          alt={`Cached preview of ${sceneName}`}
+          className="absolute inset-0 size-full object-contain"
+        />
+      )}
       <canvas
         ref={canvas}
         aria-label={`${label} screenshot of ${sceneName ?? "scene"}`}
@@ -45,7 +67,7 @@ export function SceneMonitor({
           phase !== "live" && "invisible",
         )}
       />
-      {phase !== "live" && (
+      {!hasImage && (
         <div className="absolute inset-0 grid place-items-center px-6 py-12">
           <h2
             className="font-heading line-clamp-3 text-center text-xl font-medium wrap-anywhere max-[720px]:text-base"
@@ -55,19 +77,19 @@ export function SceneMonitor({
           </h2>
         </div>
       )}
-      {(phase === "loading" || phase === "error") && (
+      {(useCached || phase === "loading" || phase === "error") && (
         <span
           role="status"
           className="absolute inset-x-2 bottom-2 text-center text-[11px] text-white/70"
         >
-          {phase === "loading"
-            ? "Loading preview…"
-            : "Preview unavailable · Retrying…"}
+          {cached
+            ? "Cached preview"
+            : phase === "loading"
+              ? "Loading preview…"
+              : "Preview unavailable · Retrying…"}
         </span>
       )}
-      <div
-        className="absolute inset-x-0 top-0 z-10 grid h-9 grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)] items-center bg-black/60 text-xs"
-      >
+      <div className="absolute inset-x-0 top-0 z-10 grid h-9 grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)] items-center bg-black/60 text-xs">
         <span
           className="flex min-w-0 items-center gap-1.5 pl-3"
           title={
@@ -86,9 +108,9 @@ export function SceneMonitor({
         </span>
         <span
           className="min-w-0 truncate px-2 text-center"
-          title={phase === "live" ? (sceneName ?? undefined) : undefined}
+          title={hasImage ? (sceneName ?? undefined) : undefined}
         >
-          {phase === "live" ? sceneName : null}
+          {hasImage ? sceneName : null}
         </span>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

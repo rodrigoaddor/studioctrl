@@ -2,12 +2,14 @@ import { cn } from "../lib/utils";
 
 export function SceneButton({
   name,
+  image,
   isPreview,
   isProgram,
   disabled,
   onSelect,
 }: {
   name: string;
+  image?: string;
   isPreview: boolean;
   isProgram: boolean;
   disabled: boolean;
@@ -37,8 +39,21 @@ export function SceneButton({
           "ring-1 ring-preview ring-offset-2 ring-offset-background",
       )}
     >
+      {image && (
+        <img
+          src={image}
+          alt=""
+          className="absolute inset-0 size-full object-cover"
+        />
+      )}
+      {image && <span className="absolute inset-0 bg-black/50" />}
       <span className="absolute inset-0 grid place-items-center px-3 py-10">
-        <span className="line-clamp-3 text-center text-sm font-medium wrap-anywhere">
+        <span
+          className={cn(
+            "line-clamp-3 text-center text-sm font-medium wrap-anywhere",
+            image && "text-white",
+          )}
+        >
           {name}
         </span>
       </span>

@@ -73,6 +73,8 @@ bun run test
 bun run build
 ```
 
-Monitor settings offer No Preview or OBS Preview independently for Preview and Program, defaulting to No Preview and remembering each browser-local choice; Remote Preview is reserved for later. OBS Preview uses low-frame-rate scene screenshots, with the scene name as fallback.
+Monitor settings offer No Preview or OBS Preview independently for Preview and Program, defaulting to No Preview and remembering each browser-local choice; Remote Preview is reserved for later. OBS Preview uses low-frame-rate scene screenshots, with the scene name as fallback. Scene buttons cache representative images locally in this browser. The Preview monitor can show a labeled cached image while media is inactive or before useful playback.
 
 Tests use a simulated OBS WebSocket server and jsdom. See [development](docs/development.md) for coverage and verification limits; full browser/OBS acceptance remains outstanding.
+
+Use the top-right **OBS actions** menu for **Refresh OBS state** or **Generate Previews**. Generation temporarily visits scenes on Preview and seeks media near five seconds, then restores Preview where possible. It skips media active on Program and never takes a scene to Program. Run it when temporarily changing Preview and starting media is appropriate. Missing thumbnails are also captured automatically as scenes naturally play past five seconds. Cached images persist across reloads; run generation again after changing scene content, or clear browser site data to remove them.

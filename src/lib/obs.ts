@@ -1,5 +1,12 @@
 import OBSWebSocket from "obs-websocket-js/json";
 import type { Profile } from "./profiles";
+import {
+  generateScenePreviews,
+  sceneMedia,
+  usablePreview,
+  representativeMediaReady,
+} from "./scene-previews";
+import { readPreview, writePreview } from "./preview-cache";
 
 export const MIN_TRANSITION_DURATION = 50;
 export const MAX_TRANSITION_DURATION = 20_000;
@@ -18,6 +25,9 @@ export interface StudioState {
   profile: Profile | null;
   studio: boolean;
   previewEpoch: number;
+  thumbnails: Record<string, string>;
+  previewReady: string | null;
+  generating: { scene: string; completed: number; total: number } | null;
   scenes: string[];
   preview: string | null;
   program: string | null;
@@ -33,6 +43,9 @@ const initial: StudioState = {
   profile: null,
   studio: false,
   previewEpoch: 0,
+  thumbnails: {},
+  previewReady: null,
+  generating: null,
   scenes: [],
   preview: null,
   program: null,
@@ -52,6 +65,8 @@ export class StudioClient {
   private refreshAgain = false;
   private screenshotAbort = new AbortController();
   private screenshotRequests = new Map<string, Promise<string>>();
+  private cacheKeys = new Map<string, string>();
+  private collecting = false;
   private transitionTimer: ReturnType<typeof setTimeout> | undefined;
   getSnapshot = () => this.state;
   subscribe = (listener: () => void) => {
@@ -79,6 +94,7 @@ export class StudioClient {
     this.screenshotAbort.abort();
     this.screenshotAbort = new AbortController();
     this.screenshotRequests.clear();
+    this.cacheKeys.clear();
     this.revision++;
     clearTimeout(this.transitionTimer);
     this.update({ ...initial, previewEpoch: this.state.previewEpoch + 1 });
@@ -127,6 +143,9 @@ export class StudioClient {
       this.screenshotRequests.clear();
       this.update({
         syncing: true,
+        thumbnails: {},
+        previewReady: null,
+        generating: null,
         scenes: [],
         preview: null,
         program: null,
@@ -142,7 +161,7 @@ export class StudioClient {
     obs.on("SceneTransitionVideoEnded", () => {
       if (this.obs !== obs) return;
       clearTimeout(this.transitionTimer);
-      this.update({ busy: false });
+      this.update({ busy: !!this.state.generating });
       refresh();
     });
     try {
@@ -174,16 +193,56 @@ export class StudioClient {
       this.update({ syncing: true });
       try {
         const studio = await obs.call("GetStudioModeEnabled");
-        const [scenes, transitions, current, preview] = await Promise.all([
-          obs.call("GetSceneList"),
-          obs.call("GetSceneTransitionList"),
-          obs.call("GetCurrentSceneTransition"),
-          studio.studioModeEnabled
-            ? obs.call("GetCurrentPreviewScene")
-            : Promise.resolve(null),
-        ]);
+        const [scenes, transitions, current, preview, collection] =
+          await Promise.all([
+            obs.call("GetSceneList"),
+            obs.call("GetSceneTransitionList"),
+            obs.call("GetCurrentSceneTransition"),
+            studio.studioModeEnabled
+              ? obs.call("GetCurrentPreviewScene")
+              : Promise.resolve(null),
+            obs.call("GetSceneCollectionList"),
+          ]);
         if (this.obs !== obs || revision !== this.revision) continue;
+        const keys = new Map(
+          scenes.scenes.map((scene) => [
+            String(scene.sceneName),
+            JSON.stringify([
+              this.state.profile?.url,
+              collection.currentSceneCollectionName,
+              scene.sceneUuid ?? scene.sceneName,
+            ]),
+          ]),
+        );
+        const thumbnails = Object.fromEntries(
+          Object.entries(this.state.thumbnails).filter(
+            ([name]) => keys.get(name) === this.cacheKeys.get(name),
+          ),
+        );
+        this.cacheKeys = keys;
+        const epoch = this.state.previewEpoch;
+        void Promise.all(
+          [...keys].map(async ([name, key]) => {
+            if (thumbnails[name]) return;
+            const frame = await readPreview(key);
+            if (
+              frame &&
+              this.obs === obs &&
+              this.state.previewEpoch === epoch &&
+              this.cacheKeys.get(name) === key &&
+              !this.state.thumbnails[name]
+            )
+              this.update({
+                thumbnails: { ...this.state.thumbnails, [name]: frame },
+              });
+          }),
+        );
         this.update({
+          thumbnails,
+          previewReady:
+            preview?.sceneName === this.state.preview
+              ? this.state.previewReady
+              : null,
           studio: studio.studioModeEnabled,
           // OBS returns scenes bottom-to-top; its Scenes dock displays the highest index first.
           scenes: [...scenes.scenes]
@@ -206,6 +265,115 @@ export class StudioClient {
       }
     }
   }
+  private savePreview = async (scene: string, data: string, epoch: number) => {
+    const key = this.cacheKeys.get(scene);
+    if (
+      !key ||
+      !(await usablePreview(data)) ||
+      this.state.previewEpoch !== epoch
+    )
+      return false;
+    this.update({ thumbnails: { ...this.state.thumbnails, [scene]: data } });
+    void writePreview(key, data);
+    return true;
+  };
+  collectPreviews = async () => {
+    const obs = this.obs;
+    const epoch = this.state.previewEpoch;
+    if (
+      !obs ||
+      !this.state.studio ||
+      this.state.status !== "connected" ||
+      this.state.busy ||
+      this.state.syncing ||
+      this.state.generating ||
+      this.collecting
+    )
+      return;
+    this.collecting = true;
+    try {
+      for (const scene of new Set([this.state.preview, this.state.program])) {
+        if (
+          !scene ||
+          (scene !== this.state.preview && this.state.thumbnails[scene])
+        )
+          continue;
+        const media = await sceneMedia(obs, scene);
+        const statuses = await Promise.all(
+          media.map((inputName) =>
+            obs.call("GetMediaInputStatus", { inputName }).catch(() => null),
+          ),
+        );
+        if (
+          this.obs !== obs ||
+          this.state.previewEpoch !== epoch ||
+          this.state.busy ||
+          this.state.generating
+        )
+          return;
+        const ready =
+          media.length === 0 ||
+          representativeMediaReady(statuses.filter((status) => status !== null));
+        if (
+          scene === this.state.preview &&
+          this.state.previewReady !== (ready ? scene : null)
+        )
+          this.update({ previewReady: ready ? scene : null });
+        if (!ready || this.state.thumbnails[scene]) continue;
+        const frame = await this.getScreenshot(scene);
+        if (this.obs === obs && !this.state.generating)
+          await this.savePreview(scene, frame, epoch);
+      }
+    } catch {
+      /* Unavailable/black frames are retried on the next natural visit. */
+    } finally {
+      this.collecting = false;
+    }
+  };
+  generatePreviews = () =>
+    this.command(async (obs) => {
+      const epoch = this.state.previewEpoch;
+      const current = () =>
+        this.obs === obs &&
+        this.state.previewEpoch === epoch &&
+        this.state.studio;
+      this.update({
+        generating: {
+          scene: "",
+          completed: 0,
+          total: this.state.scenes.length,
+        },
+      });
+      try {
+        const skipped = await generateScenePreviews({
+          obs,
+          scenes: [...this.state.scenes],
+          current,
+          capture: this.getScreenshot,
+          save: (scene, frame) =>
+            current()
+              ? this.savePreview(scene, frame, epoch)
+              : Promise.resolve(false),
+          progress: (scene, completed) => {
+            if (current())
+              this.update({
+                generating: {
+                  scene,
+                  completed,
+                  total: this.state.scenes.length,
+                },
+              });
+          },
+        });
+        if (current() && skipped)
+          this.update({
+            error: `Preview generation finished. ${skipped} scene(s) skipped: media active on Program or no usable frame. Play those scenes normally to cache them.`,
+          });
+      } finally {
+        if (this.obs === obs && this.state.previewEpoch === epoch)
+          this.update({ generating: null });
+      }
+    });
   getScreenshot = (sceneName: string): Promise<string> => {
     const obs = this.obs;
     if (
@@ -367,6 +535,7 @@ export class StudioClient {
       !obs ||
       this.state.status !== "connected" ||
       this.state.busy ||
+      this.state.generating ||
       this.state.syncing ||
       (studioRequired && !this.state.studio)
     )
@@ -416,6 +585,7 @@ export class StudioClient {
       !this.state.studio ||
       this.state.status !== "connected" ||
       this.state.busy ||
+      this.state.generating ||
       this.state.syncing
     )
       return;

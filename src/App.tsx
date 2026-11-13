@@ -1,13 +1,20 @@
-import { ChevronLeft, Circle, RefreshCw } from "lucide-react";
+import { ChevronLeft, Circle, RefreshCw, Ellipsis, Images } from "lucide-react";
 import { Link, Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { ErrorNotice } from "./components/error-notice";
 import { AppIcon } from "./components/app-icon";
 import { Button } from "./components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "./components/ui/dropdown-menu";
 import { useStudio } from "./context";
 import { Connections } from "./pages/connections";
 import { Studio } from "./pages/studio";
 export default function App() {
-  const { client, status, profile, syncing, error } = useStudio();
+  const { client, status, profile, syncing, busy, studio, generating, error } =
+    useStudio();
   const navigate = useNavigate();
   function exit() {
     client.disconnect();
@@ -48,23 +55,46 @@ export default function App() {
                   Connected to {profile?.name}
                 </span>
               </span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="shrink-0"
-                aria-label="Refresh OBS state"
-                title="Refresh OBS state"
-                aria-disabled={syncing}
-                onClick={() => {
-                  if (!syncing) void client.refresh();
-                }}
-              >
-                <RefreshCw />
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="shrink-0"
+                    aria-label="OBS actions"
+                    title="OBS actions"
+                  >
+                    <Ellipsis />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48 whitespace-nowrap">
+                  <DropdownMenuItem
+                    disabled={syncing || busy || !!generating}
+                    onSelect={() => void client.refresh()}
+                  >
+                    <RefreshCw /> Refresh OBS state
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    disabled={!studio || syncing || busy || !!generating}
+                    onSelect={() => void client.generatePreviews()}
+                  >
+                    <Images /> Generate Previews
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </>
           )}
         </div>
       </header>
+      {generating && (
+        <div
+          role="status"
+          className="fixed bottom-4 left-1/2 z-50 max-w-[90vw] -translate-x-1/2 border border-border bg-popover px-4 py-2 text-xs text-popover-foreground"
+        >
+          Generating previews {generating.completed}/{generating.total} ·{" "}
+          {generating.scene}
+        </div>
+      )}
       {error && <ErrorNotice message={error} onDismiss={client.clearError} />}
       <Routes>
         <Route
