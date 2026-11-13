@@ -1,6 +1,6 @@
 import { useStudio } from "../context";
 import { useMonitorMode } from "../hooks/use-monitor-mode";
-import { saveBothMonitorModes } from "../lib/monitor-settings";
+import { enableBothMonitors, saveBothMonitorModes } from "../lib/monitor-settings";
 import { Button } from "./ui/button";
 
 export function PreviewToggle() {
@@ -8,7 +8,7 @@ export function PreviewToggle() {
   const profileId = profile?.id ?? "default";
   const [preview] = useMonitorMode(profileId, "preview");
   const [program] = useMonitorMode(profileId, "program");
-  const bothEnabled = preview === "obs" && program === "obs";
+  const bothEnabled = preview !== "none" && program !== "none";
   const label = bothEnabled ? "Hide Previews" : "Show Previews";
   return (
     <Button
@@ -18,7 +18,7 @@ export function PreviewToggle() {
       title={label}
       aria-pressed={bothEnabled}
       onClick={() =>
-        saveBothMonitorModes(profileId, bothEnabled ? "none" : "obs")
+        bothEnabled ? saveBothMonitorModes(profileId, "none") : enableBothMonitors(profileId)
       }
     >
       {label}

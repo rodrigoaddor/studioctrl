@@ -1,4 +1,4 @@
-export type MonitorMode = "none" | "obs";
+export type MonitorMode = "none" | "obs" | "remote";
 type MonitorKind = "preview" | "program";
 const prefix = "studioctrl.monitor.v1:";
 const listeners = new Set<() => void>();
@@ -11,7 +11,8 @@ export function readMonitorMode(key: string): MonitorMode {
   const volatile = volatileModes.get(key);
   if (volatile) return volatile;
   try {
-    return localStorage.getItem(key) === "obs" ? "obs" : "none";
+    const value = localStorage.getItem(key);
+    return value === "obs" || value === "remote" ? value : "none";
   } catch {
     return "none";
   }
@@ -19,6 +20,7 @@ export function readMonitorMode(key: string): MonitorMode {
 function writeMonitorMode(key: string, mode: MonitorMode) {
   try {
     localStorage.setItem(key, mode);
+    if (mode !== "none") localStorage.setItem(`${key}:enabled`, mode);
     volatileModes.delete(key);
   } catch {
     volatileModes.set(key, mode);
@@ -49,4 +51,14 @@ export function subscribeMonitorSettings(listener: () => void) {
     listeners.delete(listener);
     window.removeEventListener("storage", onStorage);
   };
+}
+
+export function enableBothMonitors(profileId: string) {
+  for (const kind of ["preview", "program"] as const) {
+    const key = monitorSettingsKey(profileId, kind);
+    let mode: MonitorMode = "obs";
+    try { if (localStorage.getItem(`${key}:enabled`) === "remote") mode = "remote"; } catch { /* use screenshots */ }
+    writeMonitorMode(key, mode);
+  }
+  notify();
 }
