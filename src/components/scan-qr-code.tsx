@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { QrCode } from "lucide-react";
 import QrScanner from "qr-scanner";
@@ -10,6 +11,7 @@ export function ScanQrCode({
 }: {
   onScan: (connection: ObsQrConnection) => void;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   return open ? (
     <QrCapture onScan={onScan} onClose={() => setOpen(false)} />
@@ -20,7 +22,7 @@ export function ScanQrCode({
       className="mt-4 w-full"
       onClick={() => setOpen(true)}
     >
-      <QrCode /> Scan QR Code
+      <QrCode /> {t("Scan QR Code")}
     </Button>
   );
 }
@@ -32,6 +34,7 @@ function QrCapture({
   onScan: (connection: ObsQrConnection) => void;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const video = useRef<HTMLVideoElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const active = useRef(true);
@@ -85,7 +88,7 @@ function QrCapture({
     } catch {
       if (active.current)
         setError(
-          "Could not read a QR code. Choose a clear image of the OBS QR code.",
+          t("Could not read a QR code. Choose a clear image of the OBS QR code."),
         );
     } finally {
       if (active.current) setReading(false);
@@ -93,33 +96,28 @@ function QrCapture({
   }
 
   return (
-    <section className="mt-4 space-y-2" aria-label="Scan OBS QR code">
+    <section className="mt-4 space-y-2" aria-label={t("Scan OBS QR code")}>
       <div className="relative aspect-video overflow-hidden bg-black">
         <video
           ref={video}
           className="h-full w-full object-contain"
           muted
           playsInline
-          aria-label="QR scanner camera"
+          aria-label={t("QR scanner camera")}
         />
         {cameraError && (
           <p
             role="status"
             className="absolute inset-0 flex items-center justify-center p-4 text-center text-xs text-white"
-          >
-            Camera unavailable. Allow camera access over HTTPS, or upload a QR
-            image.
-          </p>
+          >{t("Camera unavailable. Allow camera access over HTTPS, or upload a QR image.")}</p>
         )}
       </div>
-      <p className="text-xs text-muted-foreground">
-        Point your camera at the OBS QR code, or upload a screenshot.
-      </p>
+      <p className="text-xs text-muted-foreground">{t("Point your camera at the OBS QR code, or upload a screenshot.")}</p>
       <input
         ref={input}
         type="file"
         accept="image/*"
-        aria-label="QR code image"
+        aria-label={t("QR code image")}
         className="sr-only"
         tabIndex={-1}
         onChange={(event) => {
@@ -135,11 +133,9 @@ function QrCapture({
           disabled={reading}
           onClick={() => input.current?.click()}
         >
-          {reading ? "Reading image…" : "Upload QR image"}
+          {reading ? t("Reading image…") : t("Upload QR image")}
         </Button>
-        <Button type="button" variant="ghost" onClick={onClose}>
-          Cancel scan
-        </Button>
+        <Button type="button" variant="ghost" onClick={onClose}>{t("Cancel scan")}</Button>
       </div>
       {error && <ErrorNotice message={error} onDismiss={() => setError("")} />}
     </section>

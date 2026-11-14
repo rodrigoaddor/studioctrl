@@ -68,6 +68,10 @@ Cloudflare hosts the controller files; OBS traffic still goes directly from the 
 - [Preview research](docs/preview-research.md): OBS Blade’s screenshot approach and Program-output limitations.
 - [Development](docs/development.md): tooling, automated checks, and live OBS acceptance checklist.
 
+## Language
+
+Open the top-right actions menu → **Language** on either the connections or studio page to choose **English** or **Português (Brasil)**. English is the default. The choice takes effect immediately and is remembered in this browser when local storage is available. Scene, source, transition, and connection names stay as you named them.
+
 ## Validation
 
 ```sh

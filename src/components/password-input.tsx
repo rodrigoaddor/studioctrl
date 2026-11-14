@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useId, useState, type ComponentProps } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { Button } from "./ui/button";
@@ -10,10 +11,11 @@ export function PasswordInput({
   secretLabel = "password",
   ...props
 }: Omit<ComponentProps<typeof Input>, "type"> & { secretLabel?: string }) {
+  const { t } = useTranslation();
   const generatedId = useId();
   const inputId = id ?? generatedId;
   const [visible, setVisible] = useState(false);
-  const action = `${visible ? "Hide" : "Show"} ${secretLabel}`;
+  const action = t(visible ? "Hide {{secret}}" : "Show {{secret}}", { secret: t(secretLabel) });
   return (
     <span className="relative block min-w-0">
       <Input

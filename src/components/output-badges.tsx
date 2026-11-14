@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Radio, Video } from "lucide-react";
 import type { OutputStatus, OutputStatuses } from "../lib/obs";
 import { Badge } from "./ui/badge";
@@ -9,10 +10,11 @@ function OutputBadge({ label, output, loading }: {
   output: OutputStatus | null;
   loading: boolean;
 }) {
-  const state = !output ? (loading ? "Checking" : "Unavailable")
-    : !output.active ? "Inactive"
-    : output.paused ? "Paused"
-    : output.reconnecting ? "Reconnecting" : "Active";
+  const { t } = useTranslation();
+  const state = !output ? (loading ? t("Checking") : t("Unavailable"))
+    : !output.active ? t("Inactive")
+    : output.paused ? t("Paused")
+    : output.reconnecting ? t("Reconnecting") : t("Active");
   const active = !!output?.active;
   const time = output ? formatOutputDuration(active ? output.duration : 0) : "--:--:--";
   const Icon = label === "LIVE" ? Radio : Video;
@@ -20,8 +22,8 @@ function OutputBadge({ label, output, loading }: {
     <Badge
       variant="outline"
       role="status"
-      aria-label={`${label}: ${state}, ${time}`}
-      title={`${label}: ${state}`}
+      aria-label={`${t(label)}: ${state}, ${time}`}
+      title={`${t(label)}: ${state}`}
       data-active={active}
       className={cn(
         "bg-muted/30 text-muted-foreground",
@@ -30,9 +32,9 @@ function OutputBadge({ label, output, loading }: {
       )}
     >
       <Icon aria-hidden="true" size={12} />
-      <span className="max-lg:sr-only">{label}</span>
-      {output?.paused && <span>Paused</span>}
-      {output?.reconnecting && <span>Reconnecting</span>}
+      <span className="max-lg:sr-only">{t(label)}</span>
+      {output?.paused && <span>{t("Paused")}</span>}
+      {output?.reconnecting && <span>{t("Reconnecting")}</span>}
       <span className="font-mono tabular-nums max-md:sr-only">{time}</span>
     </Badge>
   );

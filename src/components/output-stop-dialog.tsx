@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useRef, useState } from "react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -12,10 +13,10 @@ export function OutputStopDialog({ output, device, disabled, onStop, onClose, on
   onClose: () => void;
   onRestoreFocus: () => void;
 }) {
+  const { t } = useTranslation();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState(false);
   const running = useRef(false);
-  const label = output === "stream" ? "streaming" : "recording";
   async function stop() {
     if (running.current || disabled) return;
     running.current = true;
@@ -35,15 +36,15 @@ export function OutputStopDialog({ output, device, disabled, onStop, onClose, on
     <AlertDialogContent onEscapeKeyDown={(event) => { if (pending) event.preventDefault(); }}
       onCloseAutoFocus={(event) => { event.preventDefault(); onRestoreFocus(); }}>
       <AlertDialogHeader>
-        <AlertDialogTitle>Stop {label}?</AlertDialogTitle>
-        <AlertDialogDescription>This will stop {label} on {device}.</AlertDialogDescription>
+        <AlertDialogTitle>{t(output === "stream" ? "Stop streaming?" : "Stop recording?")}</AlertDialogTitle>
+        <AlertDialogDescription>{t(output === "stream" ? "This will stop streaming on {{device}}." : "This will stop recording on {{device}}.", { device })}</AlertDialogDescription>
       </AlertDialogHeader>
-      {error && <p role="alert" className="text-xs text-destructive">Could not stop {label}. Please try again.</p>}
+      {error && <p role="alert" className="text-xs text-destructive">{t(output === "stream" ? "Could not stop streaming. Please try again." : "Could not stop recording. Please try again.")}</p>}
       <AlertDialogFooter>
-        <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
+        <AlertDialogCancel disabled={pending}>{t("Cancel")}</AlertDialogCancel>
         <AlertDialogAction variant="destructive" disabled={pending || disabled}
           onClick={(event) => { event.preventDefault(); void stop(); }}>
-          {pending ? "Stopping…" : `Stop ${label}`}
+          {pending ? t("Stopping…") : t(output === "stream" ? "Stop streaming" : "Stop recording")}
         </AlertDialogAction>
       </AlertDialogFooter>
     </AlertDialogContent>

@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import OBSWebSocket from "obs-websocket-js/json";
 import type { Profile } from "./profiles";
 import { rememberActiveSession } from "./active-session";
@@ -112,12 +113,12 @@ export class StudioClient {
   getOutputStatuses = async (): Promise<OutputStatuses> => {
     const obs = this.obs;
     if (!obs || this.state.status !== "connected")
-      throw new Error("OBS is not connected.");
+      throw new Error(t("OBS is not connected."));
     const [stream, recording] = await Promise.allSettled([
       obs.call("GetStreamStatus"),
       obs.call("GetRecordStatus"),
     ]);
-    if (this.obs !== obs) throw new Error("OBS session changed.");
+    if (this.obs !== obs) throw new Error(t("OBS session changed."));
     return {
       stream: stream.status === "fulfilled" ? {
         active: stream.value.outputActive,
@@ -135,8 +136,8 @@ export class StudioClient {
     this.update({
       error:
         error instanceof Error
-          ? error.message || "OBS request failed."
-          : "OBS request failed.",
+          ? error.message || t("OBS request failed.")
+          : t("OBS request failed."),
     });
   }
   disconnect = () => {
@@ -176,8 +177,8 @@ export class StudioClient {
         previewEpoch: this.state.previewEpoch + 1,
         error:
           error.code === 4009
-            ? "Authentication failed. Check the OBS WebSocket password."
-            : "Connection closed. Select a connection to reconnect.",
+            ? t("Authentication failed. Check the OBS WebSocket password.")
+            : t("Connection closed. Select a connection to reconnect."),
       });
     });
     const refresh = () => {
@@ -463,7 +464,7 @@ export class StudioClient {
       await clearPreviews(keys);
     } catch {
       if (this.obs === obs && this.state.previewEpoch === epoch)
-        this.fail(new Error("Could not clear saved previews. Please try again."));
+        this.fail(new Error(t("Could not clear saved previews. Please try again.")));
     } finally {
       if (this.obs === obs) this.update({ busy: false });
     }
@@ -510,7 +511,7 @@ export class StudioClient {
         });
         if (current() && skipped)
           this.update({
-            error: `Preview generation finished. ${skipped} scene(s) skipped: no usable frame. Play those scenes normally to cache them.`,
+            error: t("Preview generation finished. {{count}} scene(s) skipped: no usable frame. Play those scenes normally to cache them.", { count: skipped }),
           });
       } finally {
         if (this.obs === obs && this.state.previewEpoch === epoch)
@@ -525,21 +526,21 @@ export class StudioClient {
       !this.state.studio ||
       !this.state.scenes.includes(sceneName)
     ) {
-      return Promise.reject(new Error("Preview source unavailable"));
+      return Promise.reject(new Error(t("Preview source unavailable")));
     }
     if (!Number.isFinite(targetWidth) || targetWidth <= 0)
-      return Promise.reject(new Error("Invalid screenshot width"));
+      return Promise.reject(new Error(t("Invalid screenshot width")));
     const imageWidth = Math.max(8, Math.min(4096, Math.ceil(targetWidth)));
     const requestKey = JSON.stringify([sceneName, imageWidth]);
     const pending = this.screenshotRequests.get(requestKey);
     if (pending) return pending;
     if (this.screenshotRequests.size >= 2)
-      return Promise.reject(new Error("Preview requests are busy"));
+      return Promise.reject(new Error(t("Preview requests are busy")));
     const signal = this.screenshotAbort.signal;
     const response = new Promise<{ imageData: string }>((resolve, reject) => {
       const cancel = () => {
         signal.removeEventListener("abort", cancel);
-        reject(new Error("Preview session changed"));
+        reject(new Error(t("Preview session changed")));
       };
       signal.addEventListener("abort", cancel, { once: true });
       void obs
@@ -563,9 +564,9 @@ export class StudioClient {
     const request = response
       .then(({ imageData }) => {
         if (this.obs !== obs || !this.state.scenes.includes(sceneName))
-          throw new Error("Preview session changed");
+          throw new Error(t("Preview session changed"));
         if (!/^data:image\/(?:jpeg|jpg);base64,/.test(imageData))
-          throw new Error("Invalid preview image");
+          throw new Error(t("Invalid preview image"));
         return imageData;
       })
       .finally(() => {
@@ -644,7 +645,7 @@ export class StudioClient {
           !Number.isFinite(status.mediaDuration) || status.mediaDuration <= 0 ||
           mediaCursor > status.mediaDuration ||
           !["OBS_MEDIA_STATE_PLAYING", "OBS_MEDIA_STATE_PAUSED"].includes(status.mediaState))
-        throw new Error("This media source is no longer available for seeking.");
+        throw new Error(t("This media source is no longer available for seeking."));
       await obs.call("SetMediaInputCursor", { inputName, mediaCursor });
       applied = this.obs === obs && this.state.previewEpoch === epoch;
     }).then(() => applied);
@@ -661,7 +662,7 @@ export class StudioClient {
       ]);
       if (this.obs !== obs || this.state.previewEpoch !== epoch || revision !== this.revision) return;
       if (!active.videoActive && !previewSources.has(inputName))
-        throw new Error("This media source is no longer available for playback control.");
+        throw new Error(t("This media source is no longer available for playback control."));
       const state = status.mediaState;
       let mediaAction: string;
       if (action === "play" && ["OBS_MEDIA_STATE_STOPPED", "OBS_MEDIA_STATE_ENDED"].includes(state))
@@ -736,7 +737,7 @@ export class StudioClient {
         transitionDuration > MAX_TRANSITION_DURATION
       ) {
         throw new Error(
-          "Transition duration must be an integer from 50 to 20,000 ms.",
+          t("Transition duration must be an integer from 50 to 20,000 ms."),
         );
       }
       await obs.call("SetCurrentSceneTransitionDuration", {

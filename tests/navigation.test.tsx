@@ -202,7 +202,8 @@ it.each(["disconnected", "connecting"] as const)(
     render(app("/"));
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "App actions" }));
-    expect(screen.getAllByRole("menuitem")).toHaveLength(1);
+    expect(screen.getAllByRole("menuitem")).toHaveLength(2);
+    expect(screen.getByRole("menuitem", { name: "Language" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitemcheckbox")).not.toBeInTheDocument();
     expect(screen.queryByTitle("Connected to Main studio")).not.toBeInTheDocument();
     await user.click(screen.getByRole("menuitem", { name: "Fullscreen", exact: true }));

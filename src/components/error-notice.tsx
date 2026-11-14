@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 import { Button } from "./ui/button";
 
@@ -8,6 +9,7 @@ export function ErrorNotice({
   message: string;
   onDismiss: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div
       role="alert"
@@ -17,7 +19,7 @@ export function ErrorNotice({
       <Button
         variant="ghost"
         size="icon-xs"
-        aria-label="Dismiss error"
+        aria-label={t("Dismiss error")}
         onClick={onDismiss}
       >
         <X />

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useState } from "react";
 import { ArrowRight, ChevronDown } from "lucide-react";
 import { useStudio } from "../context";
@@ -14,6 +15,7 @@ import {
 } from "./ui/dropdown-menu";
 
 export function TransitionControl() {
+  const { t } = useTranslation();
   const {
     client,
     transitions,
@@ -29,7 +31,7 @@ export function TransitionControl() {
     !preview || !currentTransition || !transitions.includes(currentTransition);
   return (
     <section
-      aria-label="Transitions"
+      aria-label={t("Transitions")}
       className="mx-auto grid h-full w-40 min-w-0 grid-rows-[auto_auto_auto] content-center gap-6 max-[900px]:h-auto max-[900px]:w-full sm:max-[900px]:grid-cols-3 sm:max-[900px]:grid-rows-1 max-sm:max-w-sm max-sm:grid-cols-2 max-sm:grid-rows-[auto_auto] max-[900px]:items-center max-[900px]:gap-3 max-[720px]:gap-2"
     >
       <div className="max-sm:col-start-1 max-sm:row-start-2 max-[900px]:w-full sm:max-[900px]:max-w-40 max-[900px]:self-center max-[900px]:[&>button]:h-auto max-[900px]:[&>button]:min-h-8 max-[900px]:[&>button]:px-1.5 max-[900px]:[&>button]:py-1 max-[900px]:[&>button]:whitespace-normal">
@@ -41,15 +43,15 @@ export function TransitionControl() {
         aria-disabled={disabled || unavailable}
         title={
           currentTransition
-            ? `Transition Preview to Program using ${currentTransition}`
-            : "No transition selected"
+            ? t("Transition Preview to Program using {{transition}}", { transition: currentTransition })
+            : t("No transition selected")
         }
         onClick={() => {
           if (!disabled && currentTransition)
             void client.transition(currentTransition);
         }}
       >
-        Transition <ArrowRight />
+        {t("Transition")} <ArrowRight />
       </Button>
       <div className="relative flex w-full min-w-0 flex-col gap-2 max-sm:col-start-2 max-sm:row-start-2 sm:max-[900px]:max-w-40 max-[900px]:self-center max-[900px]:justify-self-end">
         <DropdownMenu
@@ -62,17 +64,15 @@ export function TransitionControl() {
             <Button
               variant="outline"
               className="w-full justify-between"
-              aria-label="Select transition"
+              aria-label={t("Select transition")}
               disabled={!transitions.length}
               aria-disabled={disabled || !transitions.length}
             >
               <span className="truncate">
-                {currentTransition ?? "No transition"}
+                {currentTransition ?? t("No transition")}
               </span>
               {duration !== null && (
-                <span className="shrink-0 text-[11px] text-muted-foreground max-[600px]:hidden">
-                  {duration} ms
-                </span>
+                <span className="shrink-0 text-[11px] text-muted-foreground max-[600px]:hidden">{t("{{duration}} ms", { duration: duration })}</span>
               )}
               <ChevronDown />
             </Button>
@@ -117,9 +117,7 @@ export function TransitionControl() {
           </DropdownMenuContent>
         </DropdownMenu>
         {!transitions.length && (
-          <span className="absolute inset-x-0 top-full mt-1 text-center text-[11px] text-muted-foreground">
-            No transitions configured
-          </span>
+          <span className="absolute inset-x-0 top-full mt-1 text-center text-[11px] text-muted-foreground">{t("No transitions configured")}</span>
         )}
       </div>
     </section>

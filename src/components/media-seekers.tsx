@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useEffect, useId, useRef, useState } from "react";
 import { useStudio } from "../context";
 import type { ActiveMedia } from "../lib/obs";
@@ -25,6 +26,7 @@ function MediaSeeker({ media, stale, optimisticCursor, playbackPending, onPlayba
   onPlayback: (name: string, action: PlaybackAction) => void;
   onSeek: (name: string, cursor: number) => void;
 }) {
+  const { t } = useTranslation();
   const { busy, syncing } = useStudio();
   const [draft, setDraft] = useState<number | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -60,18 +62,18 @@ function MediaSeeker({ media, stale, optimisticCursor, playbackPending, onPlayba
       <div className="flex min-w-0 items-center justify-between gap-4 text-xs">
         <div className="flex min-w-0 items-center gap-2">
           <span className="truncate font-medium" title={media.name}>{media.name}</span>
-          {media.preview && <span className="shrink-0 text-preview">Preview</span>}
-          {media.program && <span className="shrink-0 text-program">Program</span>}
+          {media.preview && <span className="shrink-0 text-preview">{t("Preview")}</span>}
+          {media.program && <span className="shrink-0 text-program">{t("Program")}</span>}
         </div>
         <span className="shrink-0 font-mono text-muted-foreground tabular-nums">{time(displayedCursor)} / {time(displayedDuration)}</span>
       </div>
       <div className="flex items-center gap-3">
-        <div className="flex shrink-0 gap-1">
+        <div className="flex shrink-0 gap-2">
           <Button
             variant="outline"
-            size="sm"
-            className="w-20"
-            aria-label={`${playing ? "Pause" : "Play"} ${media.name}`}
+            size="icon-lg"
+            aria-label={`${playing ? t("Pause") : t("Play")} ${media.name}`}
+            title={playing ? t("Pause") : t("Play")}
             aria-describedby={shared ? sharedNoteId : undefined}
             aria-disabled={blocked || !canPlayPause}
             disabled={!canPlayPause}
@@ -79,13 +81,13 @@ function MediaSeeker({ media, stale, optimisticCursor, playbackPending, onPlayba
               if (!blocked && canPlayPause) onPlayback(media.name, playing ? "pause" : "play");
             }}
           >
-            {playing ? <Pause /> : <Play />}
-            {playing ? "Pause" : "Play"}
+            {playing ? <Pause className="size-4.5" aria-hidden="true" /> : <Play className="size-4.5" aria-hidden="true" />}
           </Button>
           <Button
             variant="outline"
-            size="sm"
-            aria-label={`Stop ${media.name}`}
+            size="icon-lg"
+            aria-label={t("Stop {{name}}", { name: media.name })}
+            title={t("Stop")}
             aria-describedby={shared ? sharedNoteId : undefined}
             aria-disabled={blocked || !canStop}
             disabled={!canStop}
@@ -93,14 +95,14 @@ function MediaSeeker({ media, stale, optimisticCursor, playbackPending, onPlayba
               if (!blocked && canStop) onPlayback(media.name, "stop");
             }}
           >
-            <Square /> Stop
+            <Square className="size-4.5" aria-hidden="true" />
           </Button>
         </div>
         <Slider
           thumbProps={{
-            "aria-label": `Seek ${media.name}`,
+            "aria-label": t("Seek {{name}}", { name: media.name }),
             "aria-describedby": [shared && sharedNoteId, showDragTime && dragTimeId].filter(Boolean).join(" ") || undefined,
-            "aria-valuetext": `${time(stopped ? null : cursor)} of ${time(displayedDuration)}`,
+            "aria-valuetext": t("{{elapsed}} of {{duration}}", { elapsed: time(stopped ? null : cursor), duration: time(displayedDuration) }),
             "aria-disabled": blocked || !available,
             children: showDragTime ? (
               <span
@@ -144,12 +146,13 @@ function MediaSeeker({ media, stale, optimisticCursor, playbackPending, onPlayba
           onBlur={commit}
         />
       </div>
-      {shared && <p id={sharedNoteId} className="text-xs text-muted-foreground">Shared source: playback controls and seeking also change Program playback.</p>}
+      {shared && <p id={sharedNoteId} className="text-xs text-muted-foreground">{t("Shared source: playback controls and seeking also change Program playback.")}</p>}
     </div>
   );
 }
 
 export function MediaSeekers() {
+  const { t } = useTranslation();
   const { client } = useStudio();
   const contentId = useId();
   const [collapsed, setCollapsed] = useState(() => {
@@ -260,10 +263,10 @@ export function MediaSeekers() {
   if (!controllableMedia.length && !error) return null;
   return (
     <>
-    {error && !errorDismissed && <ErrorNotice message="Unable to load active media. Retrying…" onDismiss={() => setErrorDismissed(true)} />}
-    {!!controllableMedia.length && <section aria-label="Active media" className="mt-6 grid gap-3 border border-border bg-card p-4 text-card-foreground">
+    {error && !errorDismissed && <ErrorNotice message={t("Unable to load active media. Retrying…")} onDismiss={() => setErrorDismissed(true)} />}
+    {!!controllableMedia.length && <section aria-label={t("Active media")} className="mt-6 grid gap-3 border border-border bg-card p-4 text-card-foreground">
       <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
-      {!collapsed && <h3 className="font-heading text-sm font-medium text-preview">Preview</h3>}
+      {!collapsed && <h3 className="font-heading text-sm font-medium text-preview">{t("Preview")}</h3>}
       <h2 className="col-start-2">
         <Button
           type="button"
@@ -274,17 +277,17 @@ export function MediaSeekers() {
           onClick={toggleCollapsed}
         >
           {collapsed ? <ChevronRight aria-hidden="true" /> : <ChevronDown aria-hidden="true" />}
-          Active media
+          {t("Active media")}
         </Button>
       </h2>
-      {!collapsed && <h3 className="justify-self-end font-heading text-sm font-medium text-program">Program</h3>}
+      {!collapsed && <h3 className="justify-self-end font-heading text-sm font-medium text-program">{t("Program")}</h3>}
       </div>
       <div id={contentId} hidden={collapsed} className="grid grid-cols-1 border-t border-border pt-4 min-[901px]:grid-cols-2">
         {!collapsed && (["preview", "program"] as const).map((kind) => {
-          const label = kind === "preview" ? "Preview" : "Program";
+          const label = kind === "preview" ? t("Preview") : t("Program");
           const sources = controllableMedia.filter((source) => source[kind]);
           return (
-            <section key={kind} aria-label={`${label} media`} className="grid min-w-0 content-start border-border min-[901px]:first:pr-4 last:mt-4 last:border-t last:pt-4 min-[901px]:last:mt-0 min-[901px]:last:border-t-0 min-[901px]:last:border-l min-[901px]:last:pt-0 min-[901px]:last:pl-4">
+            <section key={kind} aria-label={t("{{label}} media", { label })} className="grid min-w-0 content-start border-border min-[901px]:first:pr-4 last:mt-4 last:border-t last:pt-4 min-[901px]:last:mt-0 min-[901px]:last:border-t-0 min-[901px]:last:border-l min-[901px]:last:pt-0 min-[901px]:last:pl-4">
               {sources.length ? sources.map((source) => (
                 <MediaSeeker
                   key={source.name}
@@ -295,7 +298,7 @@ export function MediaSeekers() {
                   optimisticCursor={optimisticCursors.get(source.name)}
                   onSeek={(name, cursor) => void seek(name, cursor)}
                 />
-              )) : <p className="text-xs text-muted-foreground">No active media in {label}.</p>}
+              )) : <p className="text-xs text-muted-foreground">{t("No active media in {{label}}.", { label: label })}</p>}
             </section>
           );
         })}

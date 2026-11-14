@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { readRemoteSettings, type RemoteSettings } from "../lib/remote-preview";
 import { RemotePreview, RemotePreviewDialog } from "./remote-preview";
@@ -28,6 +29,7 @@ export function SceneMonitor({
   sceneName: string | null;
   streaming?: boolean;
 }) {
+  const { t } = useTranslation();
   const { profile, status, studio, monitorFade } = useStudio();
   const [finishedFade, setFinishedFade] = useState<typeof monitorFade>(null);
   const fade =
@@ -61,7 +63,7 @@ export function SceneMonitor({
   const [expanded, setExpanded] = useState(false);
   const [, setHasImage] = useState(false);
   const continuingFade = fade && mode === "obs";
-  const label = kind === "preview" ? "Preview" : "Program";
+  const label = kind === "preview" ? t("Preview") : t("Program");
   function select(value: string) {
     if (value === "remote" && !remoteSettings.url) { setRemoteOpen(true); return; }
     if (value !== "none" && value !== "obs" && value !== "remote") return;
@@ -69,7 +71,7 @@ export function SceneMonitor({
   }
   return (
     <article
-      aria-label={`${label} monitor`}
+      aria-label={t("{{label}} monitor", { label: label })}
       className={cn(
         "relative w-full min-w-0 overflow-hidden border border-border bg-black text-white max-sm:mx-auto max-sm:max-w-sm",
       )}
@@ -85,7 +87,7 @@ export function SceneMonitor({
           className="flex min-w-0 items-center gap-1.5 pl-3"
           title={
             mode === "obs"
-              ? "OBS scene screenshots; transition effects and same-scene Studio edits may differ from the Program output."
+              ? t("OBS scene screenshots; transition effects and same-scene Studio edits may differ from the Program output.")
               : undefined
           }
         >
@@ -101,7 +103,7 @@ export function SceneMonitor({
           className="min-w-0 truncate px-2 text-center"
           title={sceneName ?? undefined}
         >
-          {sceneName ?? `No ${kind} scene`}
+          {sceneName ?? t(kind === "preview" ? "No preview scene" : "No program scene")}
         </span>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -109,7 +111,7 @@ export function SceneMonitor({
               variant="ghost"
               size="icon-lg"
               ref={settingsButton}
-              aria-label={`${label} settings`}
+              aria-label={t("{{label}} settings", { label })}
               className={cn("col-start-3 justify-self-end border-0 shadow-none focus-visible:ring-0", headerButtonColors)}
             >
               <MonitorPlay />
@@ -117,24 +119,16 @@ export function SceneMonitor({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56" onCloseAutoFocus={(event) => { if (remoteOpen) event.preventDefault(); }}>
             <DropdownMenuRadioGroup value={mode} onValueChange={select}>
-              <DropdownMenuRadioItem value="none">
-                No Preview
-              </DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="obs">
-                OBS Preview
-              </DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="remote">
-                Remote Preview
-              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="none">{t("No Preview")}</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="obs">{t("OBS Preview")}</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="remote">{t("Remote Preview")}</DropdownMenuRadioItem>
             </DropdownMenuRadioGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => setRemoteOpen(true)}>
-              Configure Remote Preview…
-            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setRemoteOpen(true)}>{t("Configure Remote Preview…")}</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <Button variant="ghost" size="icon-lg" aria-label={expanded ? "Collapse preview" : "Expand preview"}
-          title={expanded ? "Collapse preview" : "Expand preview"}
+        <Button data-monitor-expand="" variant="ghost" size="icon-lg" aria-label={expanded ? t("Collapse preview") : t("Expand preview")}
+          title={expanded ? t("Collapse preview") : t("Expand preview")}
           className={cn("border-0", headerButtonColors)}
           onClick={() => setExpanded(!expanded)}>
           {expanded ? <Minimize /> : <Maximize />}
@@ -210,6 +204,7 @@ function MonitorPicture({ kind, sceneName, mode, onImageChange }: {
   mode: "none" | "obs";
   onImageChange?: (hasImage: boolean) => void;
 }) {
+  const { t } = useTranslation();
   const { client, status, studio, previewEpoch, thumbnails, previewReady } = useStudio();
   const cached =
     kind === "preview" && mode === "obs" && sceneName
@@ -228,21 +223,21 @@ function MonitorPicture({ kind, sceneName, mode, onImageChange }: {
   useEffect(() => {
     onImageChange?.(hasImage);
   }, [hasImage, onImageChange]);
-  const label = kind === "preview" ? "Preview" : "Program";
+  const label = kind === "preview" ? t("Preview") : t("Program");
   return (
     <>
       {showingCached && (
         <img
           key={`${previewEpoch}:${sceneName}:${cached}`}
           src={cached}
-          alt={`Cached preview of ${sceneName}`}
+          alt={t("Cached preview of {{scene}}", { scene: sceneName })}
           draggable={false}
           className="absolute inset-0 size-full object-contain opacity-75"
         />
       )}
       <canvas
         ref={canvas}
-        aria-label={`${label} screenshot of ${sceneName ?? "scene"}`}
+        aria-label={t("{{label}} screenshot of {{scene}}", { label, scene: sceneName ?? t("scene") })}
         className={cn(
           "absolute inset-0 size-full object-contain",
           phase !== "live" && "invisible",
@@ -260,7 +255,7 @@ function MonitorPicture({ kind, sceneName, mode, onImageChange }: {
             className="font-heading line-clamp-3 text-center text-xl font-medium wrap-anywhere max-[720px]:text-base"
             title={sceneName ?? undefined}
           >
-            {sceneName ?? `No ${kind} scene`}
+            {sceneName ?? t(kind === "preview" ? "No preview scene" : "No program scene")}
           </h2>
         </div>
       )}
@@ -270,10 +265,10 @@ function MonitorPicture({ kind, sceneName, mode, onImageChange }: {
           className="absolute inset-x-2 bottom-1 text-center text-[11px] text-white/70"
         >
           {showingCached
-            ? "Video Preview"
+            ? t("Video Preview")
             : phase === "loading"
-              ? "Loading preview…"
-              : "Preview unavailable · Retrying…"}
+              ? t("Loading preview…")
+              : t("Preview unavailable · Retrying…")}
         </span>
       )}
     </>

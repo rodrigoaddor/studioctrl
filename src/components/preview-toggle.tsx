@@ -1,15 +1,17 @@
+import { useTranslation } from "react-i18next";
 import { useStudio } from "../context";
 import { useMonitorMode } from "../hooks/use-monitor-mode";
 import { enableBothMonitors, saveBothMonitorModes } from "../lib/monitor-settings";
 import { Button } from "./ui/button";
 
 export function PreviewToggle() {
+  const { t } = useTranslation();
   const { profile } = useStudio();
   const profileId = profile?.id ?? "default";
   const [preview] = useMonitorMode(profileId, "preview");
   const [program] = useMonitorMode(profileId, "program");
   const bothEnabled = preview !== "none" && program !== "none";
-  const label = bothEnabled ? "Hide Previews" : "Show Previews";
+  const label = bothEnabled ? t("Hide Previews") : t("Show Previews");
   return (
     <Button
       variant="outline"

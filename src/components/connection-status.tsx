@@ -1,8 +1,10 @@
+import { useTranslation } from "react-i18next";
 import { useEffect, useState } from "react";
 import { isObsOnline } from "../lib/reachability";
 import { cn } from "../lib/utils";
 
 export function ConnectionStatus({ url, name }: { url: string; name: string }) {
+  const { t } = useTranslation();
   const [result, setResult] = useState<{ url: string; online: boolean } | null>(
     null,
   );
@@ -22,14 +24,14 @@ export function ConnectionStatus({ url, name }: { url: string; name: string }) {
     };
   }, [url]);
   const online = result?.url === url ? result.online : null;
-  const label = online === null ? "Checking…" : online ? "Online" : "Offline";
+  const label = online === null ? t("Checking…") : online ? t("Online") : t("Offline");
   return (
     <span
       role="status"
       aria-label={`${name}: ${label}`}
-      title="OBS WebSocket reachability; authentication is checked when connecting."
+      title={t("OBS WebSocket reachability; authentication is checked when connecting.")}
       className={cn(
-        "inline-flex h-5 w-20 shrink-0 items-center justify-center gap-1.5 border px-1.5 py-0.5 text-[10px]",
+        "inline-flex h-5 w-24 shrink-0 items-center justify-center gap-1.5 border px-1.5 py-0.5 text-[10px]",
         online === null
           ? "border-border text-muted-foreground"
           : online

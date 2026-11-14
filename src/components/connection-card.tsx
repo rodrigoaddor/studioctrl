@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useRef } from "react";
 import { ContextMenu } from "radix-ui";
 import { Check, LoaderCircle, Pencil, Trash2 } from "lucide-react";
@@ -21,6 +22,7 @@ export function ConnectionCard({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const { t } = useTranslation();
   const contextGesture = useRef(false);
   return (
     <ContextMenu.Root
@@ -32,7 +34,7 @@ export function ConnectionCard({
       <ContextMenu.Trigger asChild>
         <button
           type="button"
-          aria-label={`${connected ? "Open studio for" : "Connect to"} ${profile.name}`}
+          aria-label={t(connected ? "Open studio for {{name}}" : "Connect to {{name}}", { name: profile.name })}
           aria-disabled={disabled}
           aria-busy={connecting}
           onPointerDownCapture={() => {
@@ -78,14 +80,12 @@ export function ConnectionCard({
           <span className="mt-3.5 flex items-center gap-1.5 text-xs text-muted-foreground">
             {connecting ? (
               <>
-                <LoaderCircle className="size-3.5 animate-spin" /> Connecting…
-              </>
+                <LoaderCircle className="size-3.5 animate-spin" /> {t("Connecting…")} </>
             ) : profile.rememberPassword ? (
               <>
-                <Check size={13} /> Password remembered
-              </>
+                <Check size={13} /> {t("Password remembered")} </>
             ) : (
-              "Ask for password"
+              t("Ask for password")
             )}
           </span>
         </button>
@@ -96,13 +96,13 @@ export function ConnectionCard({
             onSelect={onEdit}
             className="flex cursor-default items-center gap-2 px-2 py-2 text-xs outline-hidden select-none focus:bg-accent focus:text-accent-foreground"
           >
-            <Pencil className="size-4" /> Edit connection
+            <Pencil className="size-4" /> {t("Edit connection")}
           </ContextMenu.Item>
           <ContextMenu.Item
             onSelect={onDelete}
             className="flex cursor-default items-center gap-2 px-2 py-2 text-xs text-destructive outline-hidden select-none focus:bg-accent"
           >
-            <Trash2 className="size-4" /> Delete connection
+            <Trash2 className="size-4" /> {t("Delete connection")}
           </ContextMenu.Item>
         </ContextMenu.Content>
       </ContextMenu.Portal>

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useLayoutEffect, useState } from "react";
 import { Clock } from "lucide-react";
 import { MAX_TRANSITION_DURATION, MIN_TRANSITION_DURATION } from "../lib/obs";
@@ -16,6 +17,7 @@ export function TransitionDuration({
   readOnly?: boolean;
   onChange: (duration: number) => void;
 }) {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState(duration?.toString() ?? "");
   const [invalid, setInvalid] = useState(false);
   useLayoutEffect(() => {
@@ -39,7 +41,7 @@ export function TransitionDuration({
           <Clock />
         </InputGroupAddon>
         <InputGroupInput
-          aria-label="Transition duration (milliseconds)"
+          aria-label={t("Transition duration (milliseconds)")}
           type="number"
           min={MIN_TRANSITION_DURATION}
           max={MAX_TRANSITION_DURATION}
@@ -49,8 +51,8 @@ export function TransitionDuration({
           disabled={disabled || duration === null}
           readOnly={readOnly}
           aria-disabled={disabled || readOnly || duration === null}
-          placeholder={duration === null ? "Fixed" : undefined}
-          title="50–20,000 ms. Press Enter or leave the field to apply."
+          placeholder={duration === null ? t("Fixed") : undefined}
+          title={t("50–20,000 ms. Press Enter or leave the field to apply.")}
           aria-invalid={invalid}
           className="text-center tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:m-0 [&::-webkit-outer-spin-button]:appearance-none"
           onChange={(event) => {
@@ -73,9 +75,7 @@ export function TransitionDuration({
         <span
           role="alert"
           className="px-2 pb-2 text-[10px] text-destructive"
-        >
-          Enter 50–20,000 ms.
-        </span>
+        >{t("Enter 50–20,000 ms.")}</span>
       )}
     </div>
   );

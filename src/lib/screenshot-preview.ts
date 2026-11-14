@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 export type PreviewPhase = "loading" | "live" | "error";
 
 // A sequential loop: never queue frames faster than OBS and the decoder can deliver.
@@ -75,7 +76,7 @@ export async function drawScreenshot(
     await image.decode();
     if (signal.aborted || document.hidden) return;
     const context = canvas.getContext("2d", { alpha: false });
-    if (!context) throw new Error("Canvas unavailable");
+    if (!context) throw new Error(t("Canvas unavailable"));
     if (
       canvas.width !== image.naturalWidth ||
       canvas.height !== image.naturalHeight
@@ -93,7 +94,7 @@ export async function drawScreenshot(
       if (sampleContext) {
         sampleContext.drawImage(image, 0, 0, 32, 18);
         const pixels = sampleContext.getImageData(0, 0, 32, 18).data;
-        if (!hasVisiblePixels(pixels)) throw new Error("Black preview frame");
+        if (!hasVisiblePixels(pixels)) throw new Error(t("Black preview frame"));
       }
     }
     context.drawImage(image, 0, 0);

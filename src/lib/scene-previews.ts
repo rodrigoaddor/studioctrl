@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { hasVisiblePixels } from "./screenshot-preview";
 import type OBSWebSocket from "obs-websocket-js/json";
 
@@ -152,7 +153,7 @@ export async function generateScenePreviews({
   const check = async () => {
     if (!current())
       throw new GenerationCancelled(
-        "Preview generation cancelled: OBS session changed.",
+        t("Preview generation cancelled: OBS session changed."),
       );
     const [preview, studio] = await Promise.all([
       obs.call("GetCurrentPreviewScene"),
@@ -160,7 +161,7 @@ export async function generateScenePreviews({
     ]);
     if (!current() || !studio.studioModeEnabled || preview.sceneName !== owned)
       throw new GenerationCancelled(
-        "Preview generation stopped because Preview changed in OBS.",
+        t("Preview generation stopped because Preview changed in OBS."),
       );
   };
   const safeMedia = async (inputName: string) => {
@@ -169,10 +170,10 @@ export async function generateScenePreviews({
       (await obs.call("GetSourceActive", { sourceName: inputName })).videoActive
     )
       throw new GenerationCancelled(
-        "Preview generation stopped to protect media playing on Program.",
+        t("Preview generation stopped to protect media playing on Program."),
       );
     if (!current())
-      throw new GenerationCancelled("Preview generation cancelled.");
+      throw new GenerationCancelled(t("Preview generation cancelled."));
   };
   const captureScene = async (scene: string) => {
     for (let attempt = 0; attempt < 10; attempt++) {
@@ -295,7 +296,7 @@ export async function generateScenePreviews({
               !status.mediaDuration ||
               status.mediaDuration < 0
             )
-              throw new Error(`Cannot load media: ${media.inputName}`);
+              throw new Error(t("Cannot load media: {{name}}", { name: media.inputName }));
             await safeMedia(media.inputName);
             await obs.call("SetMediaInputCursor", {
               inputName: media.inputName,

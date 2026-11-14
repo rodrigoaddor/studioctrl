@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 export type RemoteSettings = {
   url: string;
   auth: "none" | "basic" | "bearer";
@@ -12,11 +13,13 @@ export const emptyRemoteSettings: RemoteSettings = {
 const sessionSettings = new Map<string, RemoteSettings>();
 const prefix = "studioctrl.remote.v1:";
 
+export class RemoteSettingsError extends Error {}
+
 export function normalizeWhepUrl(value: string) {
   let url: URL;
-  try { url = new URL(value.trim()); } catch { throw new Error("Enter a valid HTTP or HTTPS WebRTC URL."); }
+  try { url = new URL(value.trim()); } catch { throw new RemoteSettingsError(t("Enter a valid HTTP or HTTPS WebRTC URL.")); }
   if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.hash) {
-    throw new Error("Use an HTTP or HTTPS URL without embedded credentials or a fragment.");
+    throw new RemoteSettingsError(t("Use an HTTP or HTTPS URL without embedded credentials or a fragment."));
   }
   url.pathname = url.pathname.replace(/\/$/, "");
   if (!url.pathname.endsWith("/whep")) url.pathname += "/whep";
@@ -87,7 +90,7 @@ export function startRemotePreview(settings: RemoteSettings, video: HTMLVideoEle
     video.srcObject = null;
     deleteSession();
   }
-  const timeout = setTimeout(() => fail("WebRTC timed out. Check the stream, codecs, and ICE connectivity."), 20000);
+  const timeout = setTimeout(() => fail(t("WebRTC timed out. Check the stream, codecs, and ICE connectivity.")), 20000);
   function fail(message: string) {
     if (stopped) return;
     stopped = true;
@@ -103,7 +106,7 @@ export function startRemotePreview(settings: RemoteSettings, video: HTMLVideoEle
       signal: abort.signal, credentials: "omit", redirect: "error" });
     if (stopped) return;
     if (options.status === 401 || options.status === 403) {
-      fail("WebRTC authentication failed. Check credentials and stream read permissions."); return;
+      fail(t("WebRTC authentication failed. Check credentials and stream read permissions.")); return;
     }
     if (!options.ok) throw new Error("options");
     const iceServers: RTCIceServer[] = [];
@@ -127,7 +130,7 @@ export function startRemotePreview(settings: RemoteSettings, video: HTMLVideoEle
           if (error instanceof DOMException && error.name === "NotAllowedError" && onPlaybackBlocked) {
             onPlaybackBlocked();
           } else {
-            fail("Video playback failed. Retry or check browser codec support.");
+            fail(t("Video playback failed. Retry or check browser codec support."));
           }
         });
       }
@@ -135,7 +138,7 @@ export function startRemotePreview(settings: RemoteSettings, video: HTMLVideoEle
     pc.onconnectionstatechange = () => {
       if (pc?.connectionState === "connected") clearTimeout(timeout);
       if (pc?.connectionState === "failed" || pc?.connectionState === "disconnected") {
-        fail("WebRTC connection lost. Check ICE connectivity and retry.");
+        fail(t("WebRTC connection lost. Check ICE connectivity and retry."));
       }
     };
     await pc.setLocalDescription(await pc.createOffer());
@@ -157,9 +160,9 @@ export function startRemotePreview(settings: RemoteSettings, video: HTMLVideoEle
       signal: abort.signal, credentials: "omit", redirect: "error" });
     if (response.status !== 201) {
       fail(response.status === 401 || response.status === 403
-        ? "WebRTC authentication failed. Check credentials and stream read permissions."
-        : response.status === 404 ? "Stream not found. Check the URL and that OBS is publishing."
-        : `WebRTC negotiation failed (HTTP ${response.status}).`);
+        ? t("WebRTC authentication failed. Check credentials and stream read permissions.")
+        : response.status === 404 ? t("Stream not found. Check the URL and that OBS is publishing.")
+        : t("WebRTC negotiation failed (HTTP {{status}}).", { status: response.status }));
       return;
     }
     const location = response.headers.get("Location");
@@ -171,7 +174,7 @@ export function startRemotePreview(settings: RemoteSettings, video: HTMLVideoEle
     await pc.setRemoteDescription({ type: "answer", sdp: await response.text() });
   }
   void connect().catch(() => fail(globalThis.RTCPeerConnection
-    ? "Cannot open WebRTC. Check HTTPS, CORS, server availability, and browser codec support."
-    : "WebRTC is unavailable in this browser."));
+    ? t("Cannot open WebRTC. Check HTTPS, CORS, server availability, and browser codec support.")
+    : t("WebRTC is unavailable in this browser.")));
   return () => { stopped = true; clearTimeout(timeout); release(); };
 }

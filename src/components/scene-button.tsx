@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useRef } from "react";
 import { ContextMenu } from "radix-ui";
 import { Eye, EyeOff, Image, ImageOff, Video } from "lucide-react";
@@ -30,6 +31,7 @@ export function SceneButton({
   onReset: () => void;
   onToggleHidden: () => void;
 }) {
+  const { t } = useTranslation();
   const contextGesture = useRef(false);
   return (
     <ContextMenu.Root
@@ -55,9 +57,9 @@ export function SceneButton({
           aria-pressed={isPreview}
           aria-label={[
             name,
-            isPreview && "Preview",
-            isProgram && "Program",
-            hidden && "Hidden",
+            isPreview && t("Preview"),
+            isProgram && t("Program"),
+            hidden && t("Hidden"),
           ]
             .filter(Boolean)
             .join(" ")}
@@ -85,7 +87,7 @@ export function SceneButton({
           {image && <span className="absolute inset-0 bg-black/50" />}
           {hidden && (
             <EyeOff
-              aria-label="Hidden scene"
+              aria-label={t("Hidden scene")}
               className="absolute top-2 left-2 size-4 text-white drop-shadow-md"
             />
           )}
@@ -100,18 +102,18 @@ export function SceneButton({
             </span>
           </span>
           <span className="absolute inset-x-2 top-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[10px]">
-            {isPreview && <span className="text-preview-label">Preview</span>}
-            {isProgram && <span className="text-program-label">Program</span>}
+            {isPreview && <span className="text-preview-label">{t("Preview")}</span>}
+            {isProgram && <span className="text-program-label">{t("Program")}</span>}
           </span>
           {hasMedia && (
             <Video
-              aria-label="Contains media source"
+              aria-label={t("Contains media source")}
               className={cn("absolute right-2 bottom-2 size-4", hasImage && "right-7", image && "text-white drop-shadow-md")}
             />
           )}
           {hasImage && (
             <Image
-              aria-label="Contains image source"
+              aria-label={t("Contains image source")}
               className={cn("absolute right-2 bottom-2 size-4", image && "text-white drop-shadow-md")}
             />
           )}
@@ -124,14 +126,14 @@ export function SceneButton({
             onSelect={onGenerate}
             className="flex cursor-default items-center gap-2 px-2 py-2 text-xs outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50"
           >
-            <Image className="size-4" /> Generate preview
+            <Image className="size-4" /> {t("Generate preview")}
           </ContextMenu.Item>
           <ContextMenu.Item
             disabled={disabled}
             onSelect={onReset}
             className="flex cursor-default items-center gap-2 px-2 py-2 text-xs outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50"
           >
-            <ImageOff className="size-4" /> Reset preview
+            <ImageOff className="size-4" /> {t("Reset preview")}
           </ContextMenu.Item>
           <ContextMenu.Separator className="my-1 h-px bg-border" />
           <ContextMenu.Item
@@ -143,7 +145,7 @@ export function SceneButton({
             ) : (
               <EyeOff className="size-4" />
             )}
-            {hidden ? "Show scene" : "Hide scene"}
+            {hidden ? t("Show scene") : t("Hide scene")}
           </ContextMenu.Item>
         </ContextMenu.Content>
       </ContextMenu.Portal>

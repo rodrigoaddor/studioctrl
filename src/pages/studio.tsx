@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useEffect } from "react";
 import { Clapperboard, LoaderCircle } from "lucide-react";
 import { Navigate } from "react-router-dom";
@@ -10,6 +11,7 @@ import { ScrollArea, ScrollBar } from "../components/ui/scroll-area";
 import { useStudio } from "../context";
 
 export function Studio({ streaming }: { streaming?: boolean }) {
+  const { t } = useTranslation();
   const {
     client,
     status,
@@ -50,12 +52,8 @@ export function Studio({ streaming }: { streaming?: boolean }) {
     <main className="mx-auto w-[calc(100%-3rem)] max-w-7xl py-6 max-[720px]:w-[calc(100%-2rem)] max-[720px]:py-4">
       {!studio ? (
         <section className="border border-border p-6">
-          <h2 className="font-heading m-0 text-sm font-medium">
-            Studio Mode is disabled
-          </h2>
-          <p className="mt-2 text-xs leading-[1.6] text-muted-foreground">
-            Enable Studio Mode to control Preview and transitions.
-          </p>
+          <h2 className="font-heading m-0 text-sm font-medium">{t("Studio Mode is disabled")}</h2>
+          <p className="mt-2 text-xs leading-[1.6] text-muted-foreground">{t("Enable Studio Mode to control Preview and transitions.")}</p>
           <Button
             className="mt-4"
             disabled={disabled}
@@ -66,13 +64,13 @@ export function Studio({ streaming }: { streaming?: boolean }) {
             ) : (
               <Clapperboard />
             )}{" "}
-            Enable Studio Mode
+            {t("Enable Studio Mode")}
           </Button>
         </section>
       ) : (
         <>
           <section
-            aria-label="Current scenes"
+            aria-label={t("Current scenes")}
             className="mb-6 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-4 sm:max-[900px]:grid-cols-2 max-sm:grid-cols-1 max-[720px]:gap-3"
           >
             <SceneMonitor kind="preview" sceneName={preview} streaming={streaming} />
@@ -83,7 +81,7 @@ export function Studio({ streaming }: { streaming?: boolean }) {
               <SceneMonitor kind="program" sceneName={program} streaming={streaming} />
             </div>
           </section>
-          <section aria-label="Scenes">
+          <section aria-label={t("Scenes")}>
             <ScrollArea
               className="w-full [&>[data-slot=scroll-area-viewport]]:scroll-fade-x [&>[data-slot=scroll-area-viewport]]:overscroll-x-none"
               type="auto"
@@ -117,8 +115,8 @@ export function Studio({ streaming }: { streaming?: boolean }) {
             {!visibleScenes.length && (
               <p className="py-4 text-xs text-muted-foreground">
                 {scenes.length
-                  ? "All scenes are hidden. Enable Show hidden scenes in OBS actions to view them."
-                  : "No scenes available in this scene collection."}
+                  ? t("All scenes are hidden. Enable Show hidden scenes in OBS actions to view them.")
+                  : t("No scenes available in this scene collection.")}
               </p>
             )}
           </section>

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ArrowRight, Plus, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -16,6 +17,7 @@ import {
 } from "../lib/profiles";
 
 export function Connections() {
+  const { t } = useTranslation();
   const { client, status, profile: active } = useStudio();
   const navigate = useNavigate();
   const [profiles, setProfiles] = useState(loadProfiles);
@@ -43,7 +45,7 @@ export function Connections() {
       return true;
     } catch {
       setError(
-        "Could not save connections. Check that browser storage is available.",
+        t("Could not save connections. Check that browser storage is available."),
       );
       return false;
     }
@@ -62,7 +64,7 @@ export function Connections() {
           ? { password: String(data.get("password") ?? "") }
           : {}),
       };
-      if (!p.name) throw new Error("Enter a connection name.");
+      if (!p.name) throw new Error(t("Enter a connection name."));
       if (
         persist(
           editing
@@ -72,7 +74,7 @@ export function Connections() {
       )
         setFormOpen(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not save connection.");
+      setError(e instanceof Error ? e.message : t("Could not save connection."));
     }
   }
   async function connect(p: Profile, password: string) {
@@ -87,9 +89,7 @@ export function Connections() {
   return (
     <main className="mx-auto w-[calc(100%-3rem)] max-w-[1200px] py-6 max-[720px]:w-[calc(100%-2rem)] max-[720px]:py-4">
       <div className="mb-5 flex items-center justify-between gap-4 max-[720px]:gap-3">
-        <h1 className="font-heading m-0 text-xl leading-[1.3] font-semibold tracking-[-0.5px]">
-          Connections
-        </h1>
+        <h1 className="font-heading m-0 text-xl leading-[1.3] font-semibold tracking-[-0.5px]">{t("Connections")}</h1>
         <Button
           onClick={() => {
             setEditing(null);
@@ -97,7 +97,7 @@ export function Connections() {
             setFormOpen(true);
           }}
         >
-          <Plus /> Add connection
+          <Plus /> {t("Add connection")}
         </Button>
       </div>
       {error && !formOpen && (
@@ -122,23 +122,19 @@ export function Connections() {
               setFormOpen(true);
             }}
             onDelete={() => {
-              if (window.confirm(`Delete “${p.name}”?`))
+              if (window.confirm(t("Delete “{{name}}”?", { name: p.name })))
                 persist(profiles.filter((old) => old.id !== p.id));
             }}
           />
         ))}
         {profiles.length === 0 && (
           <section className="col-span-full border border-dashed border-border p-6 text-center">
-            <h2 className="font-heading m-0 text-sm font-medium">No saved connections</h2>
-            <p className="mt-2 text-xs leading-[1.6] text-muted-foreground">
-              Add an OBS WebSocket connection.
-            </p>
+            <h2 className="font-heading m-0 text-sm font-medium">{t("No saved connections")}</h2>
+            <p className="mt-2 text-xs leading-[1.6] text-muted-foreground">{t("Add an OBS WebSocket connection.")}</p>
           </section>
         )}
       </div>
-      <p className="mt-4 text-xs text-muted-foreground">
-        Enable the server in OBS under Tools → WebSocket Server Settings.
-      </p>
+      <p className="mt-4 text-xs text-muted-foreground">{t("Enable the server in OBS under Tools → WebSocket Server Settings.")}</p>
       <dialog
         className="m-auto w-[calc(100%-2rem)] max-w-[440px] border border-border bg-popover p-5 text-popover-foreground shadow-[0_12px_40px_#0004] backdrop:bg-black/50"
         ref={dialog}
@@ -149,13 +145,13 @@ export function Connections() {
           <form onSubmit={save} key={editing?.id ?? "new"}>
             <div className="flex items-center justify-between gap-2.5">
               <h2 className="font-heading m-0 text-base font-medium">
-                {editing ? "Edit connection" : "New connection"}
+                {editing ? t("Edit connection") : t("New connection")}
               </h2>
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                aria-label="Close"
+                aria-label={t("Close")}
                 onClick={() => setFormOpen(false)}
               >
                 <X />
@@ -172,10 +168,9 @@ export function Connections() {
               />
             )}
             <label className="mt-4 flex flex-col gap-[7px] text-xs">
-              Connection name
-              <Input
+              {t("Connection name")} <Input
                 name="name"
-                placeholder="Main studio"
+                placeholder={t("Main studio")}
                 defaultValue={editing?.name}
                 required
                 autoFocus
@@ -183,8 +178,7 @@ export function Connections() {
               />
             </label>
             <label className="mt-4 flex flex-col gap-[7px] text-xs">
-              WebSocket address
-              <Input
+              {t("WebSocket address")} <Input
                 ref={addressInput}
                 name="url"
                 placeholder="ws://192.168.1.10:4455"
@@ -194,13 +188,12 @@ export function Connections() {
               />
             </label>
             <label className="mt-4 flex flex-col gap-[7px] text-xs">
-              Saved password
-              <PasswordInput
+              {t("Saved password")} <PasswordInput
                 ref={passwordInput}
                 name="password"
                 defaultValue={editing?.password ?? ""}
                 autoComplete="new-password"
-                placeholder="Optional"
+                placeholder={t("Optional")}
               />
             </label>
             <label className="mt-4 flex items-center gap-2 text-xs">
@@ -210,11 +203,9 @@ export function Connections() {
                 name="remember"
                 defaultChecked={editing?.rememberPassword ?? false}
               />{" "}
-              Remember password in this browser
+              {t("Remember password in this browser")}
             </label>
-            <p className="mt-2 text-[11px] leading-[1.6] text-muted-foreground">
-              Saved passwords are stored unencrypted in this browser.
-            </p>
+            <p className="mt-2 text-[11px] leading-[1.6] text-muted-foreground">{t("Saved passwords are stored unencrypted in this browser.")}</p>
             {error && (
               <ErrorNotice message={error} onDismiss={() => setError("")} />
             )}
@@ -223,10 +214,8 @@ export function Connections() {
                 type="button"
                 variant="outline"
                 onClick={() => setFormOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit">Save connection</Button>
+              >{t("Cancel")}</Button>
+              <Button type="submit">{t("Save connection")}</Button>
             </div>
           </form>
         )}
@@ -248,14 +237,12 @@ export function Connections() {
             }}
           >
             <div className="flex items-center justify-between gap-2.5">
-              <h2 className="font-heading m-0 text-base font-medium">
-                Connect to {connecting.name}
-              </h2>
+              <h2 className="font-heading m-0 text-base font-medium">{t("Connect to {{name}}", { name: connecting.name })}</h2>
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                aria-label="Close"
+                aria-label={t("Close")}
                 onClick={() => setConnecting(null)}
               >
                 <X />
@@ -265,27 +252,22 @@ export function Connections() {
               {connecting.url}
             </p>
             <label className="mt-4 flex flex-col gap-[7px] text-xs">
-              OBS WebSocket password
-              <PasswordInput
+              {t("OBS WebSocket password")} <PasswordInput
                 name="password"
                 autoFocus
                 autoComplete="off"
-                placeholder="Leave empty if authentication is disabled"
+                placeholder={t("Leave empty if authentication is disabled")}
               />
             </label>
-            <p className="mt-2 text-[11px] leading-[1.6] text-muted-foreground">
-              This password is used for this connection only.
-            </p>
+            <p className="mt-2 text-[11px] leading-[1.6] text-muted-foreground">{t("This password is used for this connection only.")}</p>
             <div className="mt-5 flex justify-end gap-2">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => setConnecting(null)}
-              >
-                Cancel
-              </Button>
+              >{t("Cancel")}</Button>
               <Button type="submit">
-                Connect <ArrowRight />
+                {t("Connect")} <ArrowRight />
               </Button>
             </div>
           </form>

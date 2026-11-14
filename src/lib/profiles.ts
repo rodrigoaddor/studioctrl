@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 export interface Profile {
   id: string;
   name: string;
@@ -9,7 +10,10 @@ export interface Profile {
 const key = "studioctrl.connections.v1";
 
 export function normalizeUrl(value: string) {
-  const url = new URL(value.trim());
+  let url: URL;
+  try { url = new URL(value.trim()); } catch {
+    throw new Error(t("Enter a ws:// or wss:// address without credentials or a fragment."));
+  }
   if (
     !["ws:", "wss:"].includes(url.protocol) ||
     url.username ||
@@ -17,7 +21,7 @@ export function normalizeUrl(value: string) {
     url.hash
   ) {
     throw new Error(
-      "Enter a ws:// or wss:// address without credentials or a fragment.",
+      t("Enter a ws:// or wss:// address without credentials or a fragment."),
     );
   }
   return url.href;

@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { normalizeUrl } from "./profiles";
 
 export interface ObsQrConnection {
@@ -22,7 +23,7 @@ export function parseObsQr(value: string): ObsQrConnection {
   } catch {
     // Never echo the QR payload: it contains credentials.
     throw new Error(
-      "Scan an OBS connection QR code from WebSocket Server Settings.",
+      t("Scan an OBS connection QR code from WebSocket Server Settings."),
     );
   }
 }

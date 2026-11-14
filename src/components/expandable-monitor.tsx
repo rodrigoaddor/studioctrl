@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Dialog } from "radix-ui";
@@ -7,6 +8,7 @@ export function ExpandableMonitor({ expanded, onExpandedChange, label, header, c
   expanded: boolean; onExpandedChange: (expanded: boolean) => void;
   compact: boolean; label: string; header: ReactNode; children: ReactNode;
 }) {
+  const { t } = useTranslation();
   const [host] = useState(() => {
     const element = document.createElement("div");
     
@@ -26,7 +28,7 @@ export function ExpandableMonitor({ expanded, onExpandedChange, label, header, c
       <Dialog.Content aria-describedby={undefined}
         onOpenAutoFocus={(event) => {
           event.preventDefault();
-          host.querySelector<HTMLButtonElement>('[aria-label="Collapse preview"]')?.focus();
+          host.querySelector<HTMLButtonElement>('[data-monitor-expand]')?.focus();
         }}
         onInteractOutside={(event) => {
           if (event.target instanceof Element && event.target.closest('[role="menu"], [role="dialog"]')) event.preventDefault();
@@ -34,9 +36,9 @@ export function ExpandableMonitor({ expanded, onExpandedChange, label, header, c
         className="fixed top-1/2 left-1/2 z-50 w-[min(calc(100vw-1.5rem),calc((100dvh-4rem)*16/9))] -translate-x-1/2 -translate-y-1/2 border border-border bg-black text-white shadow-xl"
         onCloseAutoFocus={(event) => {
           event.preventDefault();
-          host.querySelector<HTMLButtonElement>('[aria-label="Expand preview"]')?.focus();
+          host.querySelector<HTMLButtonElement>('[data-monitor-expand]')?.focus();
         }}>
-        <Dialog.Title className="sr-only">{label} monitor</Dialog.Title>
+        <Dialog.Title className="sr-only">{t("{{label}} monitor", { label: label })}</Dialog.Title>
         <div ref={(element) => { enlarged.current = element; if (element && host.parentElement !== element) element.appendChild(host); }} className="min-w-0" />
       </Dialog.Content>
     </Dialog.Portal>

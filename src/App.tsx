@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import { languages } from "./i18n";
 import {
   ChevronLeft,
   Server,
@@ -8,6 +10,7 @@ import {
   Minimize,
   ImageOff,
   Frame,
+  Languages,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, Route, Routes, useNavigate } from "react-router-dom";
@@ -32,11 +35,14 @@ import {
   DropdownMenuSub,
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
 } from "./components/ui/dropdown-menu";
 import { useStudio } from "./context";
 import { Connections } from "./pages/connections";
 import { Studio } from "./pages/studio";
 export default function App() {
+  const { t, i18n } = useTranslation();
   const {
     client,
     status,
@@ -93,7 +99,7 @@ export default function App() {
         await document.documentElement.requestFullscreen();
       }
     } catch {
-      setFullscreenError("Could not change fullscreen mode. Please try again.");
+      setFullscreenError(t("Could not change fullscreen mode. Please try again."));
     }
   }
   function exit() {
@@ -107,7 +113,7 @@ export default function App() {
           {status !== "disconnected" && (
             <Button variant="ghost" size="sm" className="shrink-0" onClick={exit}>
               <ChevronLeft />
-              {status === "connecting" ? "Cancel" : "Exit"}
+              {status === "connecting" ? t("Cancel") : t("Exit")}
             </Button>
           )}
           {status === "connected" && (
@@ -115,9 +121,9 @@ export default function App() {
               <Server aria-hidden="true" size={14} className="shrink-0" />
               <span
                 className="truncate"
-                title={`Connected to ${profile?.name}`}
+                title={t("Connected to {{name}}", { name: profile?.name })}
               >
-                <span className="max-lg:sr-only">Connected to </span>
+                <span className="max-lg:sr-only">{t("Connected to")}{" "}</span>
                 {profile?.name}
               </span>
             </Badge>
@@ -146,8 +152,8 @@ export default function App() {
                 size="icon"
                 className="shrink-0"
                 ref={actionsButton}
-                aria-label={status === "connected" ? "OBS actions" : "App actions"}
-                title={status === "connected" ? "OBS actions" : "App actions"}
+                aria-label={status === "connected" ? t("OBS actions") : t("App actions")}
+                title={status === "connected" ? t("OBS actions") : t("App actions")}
               >
                 <Ellipsis />
               </Button>
@@ -161,10 +167,10 @@ export default function App() {
                 <>
                   <DropdownMenuLabel className="flex min-w-0 items-center gap-2">
                     <Server className="size-4 shrink-0" />
-                    <span className="truncate" title={profile?.name}>Connected to {profile?.name}</span>
+                    <span className="truncate" title={profile?.name}>{t("Connected to {{name}}", { name: profile?.name })}</span>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuGroup aria-label="Status">
+                  <DropdownMenuGroup aria-label={t("Status")}>
                     <OutputMenuItems outputs={outputs} disabled={outputDisabled} onSelect={(output, active) => {
                       if (active) setStopTarget({ output, session });
                       else void setOutput(output, true);
@@ -172,38 +178,51 @@ export default function App() {
                   </DropdownMenuGroup>
                   <DropdownMenuSeparator />
                   <DropdownMenuSub>
-                    <DropdownMenuSubTrigger><Images /> Scenes</DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent className="w-48 whitespace-nowrap">
+                    <DropdownMenuSubTrigger><Images /> {t("Scenes")}</DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent className="min-w-56 whitespace-nowrap">
                       <DropdownMenuCheckboxItem
                         checked={showHiddenScenes}
                         onCheckedChange={client.setShowHiddenScenes}
                       >
-                        <EyeOff /> Show hidden scenes
+                        <EyeOff /> {t("Show hidden scenes")}
                       </DropdownMenuCheckboxItem>
                       <DropdownMenuCheckboxItem
                         checked={showBorders}
                         onCheckedChange={setShowBorders}
                       >
-                        <Frame /> Show preview borders
+                        <Frame /> {t("Show preview borders")}
                       </DropdownMenuCheckboxItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         disabled={!studio || syncing || busy || !!generating}
                         onSelect={() => void client.generatePreviews()}
                       >
-                        <Images /> Generate Previews
+                        <Images /> {t("Generate Previews")}
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         disabled={syncing || busy || !!generating}
                         onSelect={() => void client.resetPreviews()}
                       >
-                        <ImageOff /> Reset Previews
+                        <ImageOff /> {t("Reset Previews")}
                       </DropdownMenuItem>
                     </DropdownMenuSubContent>
                   </DropdownMenuSub>
                   <DropdownMenuSeparator />
                 </>
               )}
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger><Languages /> {t("Language")}</DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuRadioGroup value={i18n.resolvedLanguage} onValueChange={(language) => {
+                    if (languages.some(({ code }) => code === language)) void i18n.changeLanguage(language);
+                  }}>
+                    {languages.map(({ code, label }) => (
+                      <DropdownMenuRadioItem key={code} value={code} lang={code}>{label}</DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuSeparator />
               <DropdownMenuItem
                 disabled={
                   fullscreen
@@ -214,7 +233,7 @@ export default function App() {
                 onSelect={() => void toggleFullscreen()}
               >
                 {fullscreen ? <Minimize /> : <Maximize />}
-                {fullscreen ? "Exit fullscreen" : "Fullscreen"}
+                {fullscreen ? t("Exit fullscreen") : t("Fullscreen")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -231,10 +250,7 @@ export default function App() {
         <div
           role="status"
           className="fixed bottom-4 left-1/2 z-50 max-w-[90vw] -translate-x-1/2 border border-border bg-popover px-4 py-2 text-xs text-popover-foreground"
-        >
-          Generating previews {generating.completed}/{generating.total} ·{" "}
-          {generating.scene}
-        </div>
+        >{t("Generating previews {{completed}}/{{total}} · {{scene}}", { completed: generating.completed, total: generating.total, scene: generating.scene })}</div>
       )}
       {error && <ErrorNotice message={error} onDismiss={client.clearError} />}
       {!error && fullscreenError && (
@@ -245,7 +261,7 @@ export default function App() {
       )}
       {restoring ? (
         <main className="mx-auto w-[calc(100%-3rem)] max-w-7xl py-6 max-[720px]:w-[calc(100%-2rem)] max-[720px]:py-4">
-          <p role="status" className="text-muted-foreground">Reconnecting to {profile?.name ?? "OBS"}…</p>
+          <p role="status" className="text-muted-foreground">{t("Reconnecting to {{name}}…", { name: profile?.name ?? "OBS" })}</p>
         </main>
       ) : <Routes>
         <Route
