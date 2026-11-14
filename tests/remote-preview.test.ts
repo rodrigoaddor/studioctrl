@@ -25,6 +25,13 @@ it("uses UTF-8 Basic authentication and bearer headers", () => {
   expect(remoteAuthorization({ ...emptyRemoteSettings, auth: "basic", username: "user", password: "café" })).toEqual({ Authorization: "Basic dXNlcjpjYWbDqQ==" });
   expect(remoteAuthorization({ ...emptyRemoteSettings, auth: "bearer", token: "token" })).toEqual({ Authorization: "Bearer token" });
 });
+it.each([undefined, false, true, "true"])("ignores legacy stored audio preferences (%s)", (audio) => {
+  const key = `audio-read:${String(audio)}`;
+  localStorage.setItem(`studioctrl.remote.v1:${key}`, JSON.stringify({ url: "https://media.example/live", audio }));
+  expect(readRemoteSettings(key)).not.toHaveProperty("audio");
+  saveRemoteSettings(key, readRemoteSettings(key));
+  expect(JSON.parse(localStorage.getItem(`studioctrl.remote.v1:${key}`)!)).not.toHaveProperty("audio");
+});
 function setup() {
   const pc = {
     ontrack: null as ((event: RTCTrackEvent) => void) | null,
@@ -116,5 +123,18 @@ it("keeps one video load when audio and video tracks arrive during pending play"
   expect(attach).toHaveBeenCalledTimes(1);
   expect(play).toHaveBeenCalledTimes(1);
   expect(pc.close).not.toHaveBeenCalled();
+  stop();
+});
+
+it("keeps the subscription available for a user gesture when audible autoplay is blocked", async () => {
+  const { pc, video, settings, error } = setup();
+  const blocked = vi.fn();
+  vi.spyOn(video, "play").mockRejectedValue(new DOMException("User gesture required", "NotAllowedError"));
+  const stop = startRemotePreview(settings, video, error, blocked);
+  await vi.waitFor(() => expect(pc.setRemoteDescription).toHaveBeenCalled());
+  pc.ontrack!({ track: { kind: "video" } } as RTCTrackEvent);
+  await vi.waitFor(() => expect(blocked).toHaveBeenCalledOnce());
+  expect(pc.close).not.toHaveBeenCalled();
+  expect(error).not.toHaveBeenCalled();
   stop();
 });

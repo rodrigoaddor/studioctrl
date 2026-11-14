@@ -64,7 +64,7 @@ export function remoteAuthorization(settings: RemoteSettings): Record<string, st
 
 // Non-trickle WHEP: gather all local candidates before posting the SDP offer.
 export function startRemotePreview(settings: RemoteSettings, video: HTMLVideoElement,
-  onError: (message: string) => void) {
+  onError: (message: string) => void, onPlaybackBlocked?: () => void) {
   let stopped = false;
   let pc: RTCPeerConnection | undefined;
   let sessionUrl: string | undefined;
@@ -122,7 +122,14 @@ export function startRemotePreview(settings: RemoteSettings, video: HTMLVideoEle
       // reloads the element and aborts the first pending play() request.
       if (video.srcObject !== stream) {
         video.srcObject = stream!;
-        void video.play().catch(() => fail("Video playback failed. Retry or check browser codec support."));
+        void video.play().catch((error: unknown) => {
+          if (stopped) return;
+          if (error instanceof DOMException && error.name === "NotAllowedError" && onPlaybackBlocked) {
+            onPlaybackBlocked();
+          } else {
+            fail("Video playback failed. Retry or check browser codec support.");
+          }
+        });
       }
     };
     pc.onconnectionstatechange = () => {

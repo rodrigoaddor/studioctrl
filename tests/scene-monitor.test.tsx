@@ -27,17 +27,32 @@ beforeEach(() => {
     },
   });
   HTMLElement.prototype.scrollIntoView = vi.fn();
+  vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
 });
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   vi.useRealTimers();
 });
-it.each(["preview", "program"] as const)("anchors %s settings to the last overlay column when the scene-name cell is hidden", (kind) => {
+it.each(["preview", "program"] as const)("anchors %s settings beside the scene name in the header", (kind) => {
   render(<SceneMonitor kind={kind} sceneName="Camera" />);
   const settings = screen.getByRole("button", { name: `${kind === "preview" ? "Preview" : "Program"} settings` });
-  expect(settings.parentElement?.querySelector('[title="Camera"]')).toHaveClass("sm:hidden");
+  expect(settings.parentElement?.querySelector('[title="Camera"]')).not.toHaveClass("sm:hidden");
   expect(settings).toHaveClass("col-start-3");
+});
+
+it.each(["none", "obs", "remote"])("keeps the header and expand action above the picture in %s mode", (mode) => {
+  localStorage.setItem(monitorSettingsKey("studio", "preview"), mode);
+  vi.spyOn(remote, "startRemotePreview").mockReturnValue(vi.fn());
+  render(<SceneMonitor kind="preview" sceneName="Camera" />);
+  const settings = screen.getByRole("button", { name: "Preview settings" });
+  const header = settings.parentElement!;
+  expect(header).not.toHaveClass("absolute");
+  expect(within(header).getByText("Camera")).toBeInTheDocument();
+  expect(settings.nextElementSibling).toBe(screen.getByRole("button", { name: "Expand preview" }));
+  expect(screen.queryByRole("slider")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Expand preview" })).toBeVisible();
 });
 
 it.each(["preview", "program"] as const)("warns when OBS stops streaming in the %s remote monitor without restarting playback", (kind) => {
@@ -309,4 +324,79 @@ it("keeps remote playback through scene changes and restores it with the combine
   await user.keyboard("{Escape}");
   expect(start).toHaveBeenCalledTimes(2);
   expect(screen.getByRole("button", { name: "Program settings" })).toHaveFocus();
+});
+
+
+it.each(["preview", "program"] as const)("expands the %s monitor with a separate header and preserves the player", async (kind) => {
+  const user = userEvent.setup();
+  localStorage.setItem(monitorSettingsKey("studio", kind), "remote");
+  remote.saveRemoteSettings(`studio:${kind}`, { ...remote.emptyRemoteSettings, url: "https://media.example/live" });
+  const start = vi.spyOn(remote, "startRemotePreview").mockReturnValue(vi.fn());
+  vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
+  render(<SceneMonitor kind={kind} sceneName="Camera" />);
+  const player = screen.getByLabelText("Remote WebRTC stream") as HTMLVideoElement;
+  await user.click(screen.getByRole("button", { name: "Show remote audio controls" }));
+  await user.click(screen.getByRole("button", { name: "Unmute remote audio" }));
+  await user.click(screen.getByRole("button", { name: "Expand preview" }));
+  const dialog = screen.getByRole("dialog", { name: `${kind === "preview" ? "Preview" : "Program"} monitor` });
+  expect(within(dialog).getByText("Camera")).toBeInTheDocument();
+  const settings = within(dialog).getByRole("button", { name: `${kind === "preview" ? "Preview" : "Program"} settings` });
+  expect(settings.parentElement).not.toHaveClass("absolute");
+  expect(within(dialog).getByLabelText("Remote WebRTC stream")).toBe(player);
+  expect(player.muted).toBe(false);
+  await user.click(settings);
+  await user.click(screen.getByRole("menuitem", { name: "Configure Remote Preview…" }));
+  await user.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(settings).toHaveFocus();
+  await user.keyboard("{Escape}");
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(screen.getByLabelText("Remote WebRTC stream")).toBe(player);
+  expect(player.muted).toBe(false);
+  expect(screen.getByRole("button", { name: "Expand preview" })).toHaveFocus();
+  await user.click(screen.getByRole("button", { name: "Expand preview" }));
+  expect(screen.queryByRole("button", { name: "Close expanded preview" })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Collapse preview" }));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(screen.getByLabelText("Remote WebRTC stream")).toBe(player);
+  expect(start).toHaveBeenCalledOnce();
+});
+
+it("does not reveal volume when expanding or collapsing the preview", async () => {
+  const user = userEvent.setup();
+  localStorage.setItem(monitorSettingsKey("studio", "preview"), "remote");
+  vi.spyOn(remote, "startRemotePreview").mockReturnValue(vi.fn());
+  render(<SceneMonitor kind="preview" sceneName="Camera" />);
+  expect(screen.queryByRole("slider")).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Expand preview" }));
+  expect(screen.queryByRole("slider")).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Collapse preview" }));
+  expect(screen.queryByRole("slider")).not.toBeInTheDocument();
+});
+
+it("toggles remote sound independently in each monitor without reconnecting", async () => {
+  const user = userEvent.setup();
+  for (const kind of ["preview", "program"] as const) {
+    localStorage.setItem(monitorSettingsKey("studio", kind), "remote");
+    remote.saveRemoteSettings(`studio:${kind}`, { ...remote.emptyRemoteSettings, url: "https://media.example/live" });
+  }
+  const start = vi.spyOn(remote, "startRemotePreview").mockReturnValue(vi.fn());
+  const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
+  const { unmount } = render(<><SceneMonitor kind="preview" sceneName="Camera" /><SceneMonitor kind="program" sceneName="Slides" /></>);
+  const preview = within(screen.getByRole("article", { name: "Preview monitor" }));
+  const program = within(screen.getByRole("article", { name: "Program monitor" }));
+  await user.click(preview.getByRole("button", { name: "Show remote audio controls" }));
+  await user.click(preview.getByRole("button", { name: "Unmute remote audio" }));
+  expect((preview.getByLabelText("Remote WebRTC stream") as HTMLVideoElement).muted).toBe(false);
+  expect((program.getByLabelText("Remote WebRTC stream") as HTMLVideoElement).muted).toBe(true);
+  expect(preview.getByRole("button", { name: "Mute remote audio" })).toBeInTheDocument();
+  expect(play).toHaveBeenCalledOnce();
+  expect(start).toHaveBeenCalledTimes(2);
+  expect(remote.readRemoteSettings("studio:preview")).not.toHaveProperty("audio");
+  expect(remote.readRemoteSettings("studio:program")).not.toHaveProperty("audio");
+  unmount();
+  render(<SceneMonitor kind="preview" sceneName="Camera" />);
+  await user.click(screen.getByRole("button", { name: "Show remote audio controls" }));
+  expect(screen.getByRole("button", { name: "Unmute remote audio" })).toBeInTheDocument();
+  expect((screen.getByLabelText("Remote WebRTC stream") as HTMLVideoElement).muted).toBe(true);
+  expect(start).toHaveBeenCalledTimes(3);
 });

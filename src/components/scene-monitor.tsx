@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { readRemoteSettings, type RemoteSettings } from "../lib/remote-preview";
 import { RemotePreview, RemotePreviewDialog } from "./remote-preview";
-import { Settings } from "lucide-react";
+import { ExpandableMonitor } from "./expandable-monitor";
+import { Maximize, Minimize, MonitorPlay } from "lucide-react";
 import { useStudio } from "../context";
 import { useMonitorMode } from "../hooks/use-monitor-mode";
 import { useObsPreview } from "../hooks/use-obs-preview";
@@ -48,7 +49,8 @@ export function SceneMonitor({
   const [remoteOpen, setRemoteOpen] = useState(false);
   const [remoteOverride, setRemoteOverride] = useState<{ key: string; settings: RemoteSettings } | null>(null);
   const remoteSettings = useMemo(() => remoteOverride?.key === settingsKey ? remoteOverride.settings : readRemoteSettings(settingsKey), [settingsKey, remoteOverride]);
-  const [hasImage, setHasImage] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [, setHasImage] = useState(false);
   const continuingFade = fade && mode === "obs";
   const label = kind === "preview" ? "Preview" : "Program";
   function select(value: string) {
@@ -60,10 +62,74 @@ export function SceneMonitor({
     <article
       aria-label={`${label} monitor`}
       className={cn(
-        "relative aspect-video w-full min-w-0 overflow-hidden border border-border bg-black text-white max-sm:mx-auto max-sm:max-w-sm",
-        mode === "none" && "max-sm:aspect-auto",
+        "relative w-full min-w-0 overflow-hidden border border-border bg-black text-white max-sm:mx-auto max-sm:max-w-sm",
       )}
     >
+      <ExpandableMonitor compact={mode === "none"} expanded={expanded} onExpandedChange={setExpanded} label={label} header={
+      <div className={cn(
+        "grid h-9 grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center bg-black/60 text-xs",
+        "relative min-w-0 flex-1",
+      )}>
+        <span
+          className="flex min-w-0 items-center gap-1.5 pl-3"
+          title={
+            mode === "obs"
+              ? "OBS scene screenshots; transition effects and same-scene Studio edits may differ from the Program output."
+              : undefined
+          }
+        >
+          <span
+            className={cn(
+              "size-1.5 shrink-0 rounded-full",
+              kind === "preview" ? "bg-preview" : "bg-program",
+            )}
+          />
+          {label}
+        </span>
+        <span
+          className="min-w-0 truncate px-2 text-center"
+          title={sceneName ?? undefined}
+        >
+          {sceneName ?? `No ${kind} scene`}
+        </span>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-lg"
+              ref={settingsButton}
+              aria-label={`${label} settings`}
+              className="col-start-3 justify-self-end border-0 text-white shadow-none hover:bg-white/15 hover:text-white focus-visible:bg-white/15 focus-visible:text-white focus-visible:ring-0 aria-expanded:bg-white/15 aria-expanded:text-white dark:hover:bg-white/15"
+            >
+              <MonitorPlay />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56" onCloseAutoFocus={(event) => { if (remoteOpen) event.preventDefault(); }}>
+            <DropdownMenuRadioGroup value={mode} onValueChange={select}>
+              <DropdownMenuRadioItem value="none">
+                No Preview
+              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="obs">
+                OBS Preview
+              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="remote">
+                Remote Preview
+              </DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => setRemoteOpen(true)}>
+              Configure Remote Preview…
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <Button variant="ghost" size="icon-lg" aria-label={expanded ? "Collapse preview" : "Expand preview"}
+          title={expanded ? "Collapse preview" : "Expand preview"}
+          className="border-0 text-white hover:bg-white/15 hover:text-white dark:hover:bg-white/15"
+          onClick={() => setExpanded(!expanded)}>
+          {expanded ? <Minimize /> : <Maximize />}
+        </Button>
+      </div>
+      }>
       {mode !== "remote" && (!continuingFade || finishedFade !== fade) && (
         <MonitorPicture
           kind={kind}
@@ -86,69 +152,16 @@ export function SceneMonitor({
         key={`player:${settingsKey}`}
         settings={remoteSettings}
         streaming={streaming}
+        expanded={expanded}
         onImageChange={setHasImage}
       />}
       {remoteOpen && <RemotePreviewDialog key={`dialog:${settingsKey}`} settingsKey={settingsKey} label={label}
-        onClose={() => { setRemoteOpen(false); settingsButton.current?.focus(); }} onSave={(settings) => {
+        onRestoreFocus={() => settingsButton.current?.focus()}
+        onClose={() => setRemoteOpen(false)} onSave={(settings) => {
           setRemoteOverride({ key: settingsKey, settings }); setMode("remote");
         }} />}
-      <div className={cn(
-        "absolute inset-x-0 top-0 z-10 grid h-9 grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)] items-center bg-black/60 text-xs",
-        mode === "none" && "max-sm:relative",
-      )}>
-        <span
-          className="flex min-w-0 items-center gap-1.5 pl-3"
-          title={
-            mode === "obs"
-              ? "OBS scene screenshots; transition effects and same-scene Studio edits may differ from the Program output."
-              : undefined
-          }
-        >
-          <span
-            className={cn(
-              "size-1.5 shrink-0 rounded-full",
-              kind === "preview" ? "bg-preview" : "bg-program",
-            )}
-          />
-          {label}
-        </span>
-        <span
-          className={cn("min-w-0 truncate px-2 text-center", mode === "none" && "sm:hidden")}
-          title={mode === "none" ? sceneName ?? undefined : hasImage ? (mode === "remote" ? "Remote stream" : sceneName ?? undefined) : undefined}
-        >
-          {mode === "none" ? sceneName ?? `No ${kind} scene` : hasImage ? (mode === "remote" ? "Remote stream" : sceneName) : null}
-        </span>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon-lg"
-              ref={settingsButton}
-              aria-label={`${label} settings`}
-              className="col-start-3 justify-self-end border-0 text-white shadow-none hover:bg-white/15 hover:text-white focus-visible:bg-white/15 focus-visible:text-white focus-visible:ring-0 aria-expanded:bg-white/15 aria-expanded:text-white dark:hover:bg-white/15"
-            >
-              <Settings />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56" onCloseAutoFocus={(event) => { if (remoteOpen) event.preventDefault(); }}>
-            <DropdownMenuRadioGroup value={mode} onValueChange={select}>
-              <DropdownMenuRadioItem value="none">
-                No Preview
-              </DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="obs">
-                OBS Preview
-              </DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="remote">
-                Remote Preview
-              </DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => setRemoteOpen(true)}>
-              Configure Remote Preview…
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+
+      </ExpandableMonitor>
     </article>
   );
 }
