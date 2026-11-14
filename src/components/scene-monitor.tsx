@@ -89,12 +89,12 @@ export function SceneMonitor({
               : undefined
           }
         >
-          <span
-            className={cn(
-              "size-1.5 shrink-0 rounded-full",
-              accented ? "bg-current" : kind === "preview" ? "bg-preview" : "bg-program",
-            )}
-          />
+          {!showBorders && (
+            <span
+              aria-hidden="true"
+              className={cn("size-1.5 shrink-0 rounded-full", kind === "preview" ? "bg-preview" : "bg-program")}
+            />
+          )}
           {label}
         </span>
         <span
