@@ -11,6 +11,40 @@ vi.mock("../src/lib/screenshot-preview", () => ({
 afterEach(() => {
   cleanup();
   vi.resetAllMocks();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
+it("samples the current viewport and pixel ratio for every frame without restarting the loop", async () => {
+  let loop!: Parameters<typeof startScreenshotPreview>[0];
+  vi.mocked(startScreenshotPreview).mockImplementation((options) => {
+    loop = options;
+    return vi.fn();
+  });
+  const client = new StudioClient();
+  const capture = vi.spyOn(client, "getScreenshot").mockResolvedValue("frame");
+  const canvas = document.createElement("canvas");
+  let width = 320;
+  vi.spyOn(canvas, "getBoundingClientRect").mockImplementation(() => ({ width }) as DOMRect);
+  vi.stubGlobal("devicePixelRatio", 2);
+  const { unmount } = renderHook(() => {
+    const preview = useObsPreview(client, "Camera", true, 1);
+    preview.canvas.current = canvas;
+    return preview;
+  });
+  expect(loop.visible?.()).toBe(true);
+  await loop.capture();
+  expect(capture).toHaveBeenLastCalledWith("Camera", 640);
+  width = 1200;
+  await loop.capture();
+  expect(capture).toHaveBeenLastCalledWith("Camera", 2400);
+  vi.stubGlobal("devicePixelRatio", 1);
+  width = 320;
+  await loop.capture();
+  expect(capture).toHaveBeenLastCalledWith("Camera", 320);
+  width = 0;
+  expect(loop.visible?.()).toBe(false);
+  expect(startScreenshotPreview).toHaveBeenCalledOnce();
+  unmount();
 });
 it("hides old frames and stops the previous loop on scene, collection, or enabled changes", () => {
   const stop = vi.fn();

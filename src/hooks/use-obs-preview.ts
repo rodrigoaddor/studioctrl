@@ -26,7 +26,10 @@ export function useObsPreview(
     }
     const target = canvas.current;
     return startScreenshotPreview({
-      capture: () => client.getScreenshot(sceneName),
+      capture: () => client.getScreenshot(
+        sceneName,
+        target.getBoundingClientRect().width * (window.devicePixelRatio || 1),
+      ),
       draw: (data, signal) => drawScreenshot(target, data, signal, rejectBlack),
       onPhase: (phase) =>
         setState((previous) =>
@@ -34,7 +37,7 @@ export function useObsPreview(
             ? previous
             : { source, phase },
         ),
-      visible: () => !document.hidden,
+      visible: () => !document.hidden && target.getBoundingClientRect().width > 0,
     });
   }, [client, sceneName, enabled, source, rejectBlack]);
   const phase =

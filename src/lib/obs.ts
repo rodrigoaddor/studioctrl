@@ -481,7 +481,7 @@ export class StudioClient {
           this.update({ generating: null });
       }
     });
-  getScreenshot = (sceneName: string): Promise<string> => {
+  getScreenshot = (sceneName: string, targetWidth = 640): Promise<string> => {
     const obs = this.obs;
     if (
       !obs ||
@@ -491,7 +491,11 @@ export class StudioClient {
     ) {
       return Promise.reject(new Error("Preview source unavailable"));
     }
-    const pending = this.screenshotRequests.get(sceneName);
+    if (!Number.isFinite(targetWidth) || targetWidth <= 0)
+      return Promise.reject(new Error("Invalid screenshot width"));
+    const imageWidth = Math.max(8, Math.min(4096, Math.ceil(targetWidth)));
+    const requestKey = JSON.stringify([sceneName, imageWidth]);
+    const pending = this.screenshotRequests.get(requestKey);
     if (pending) return pending;
     if (this.screenshotRequests.size >= 2)
       return Promise.reject(new Error("Preview requests are busy"));
@@ -506,7 +510,7 @@ export class StudioClient {
         .call("GetSourceScreenshot", {
           sourceName: sceneName,
           imageFormat: "jpg",
-          imageWidth: 640,
+          imageWidth,
           imageCompressionQuality: 65,
         })
         .then(
@@ -529,10 +533,10 @@ export class StudioClient {
         return imageData;
       })
       .finally(() => {
-        if (this.screenshotRequests.get(sceneName) === request)
-          this.screenshotRequests.delete(sceneName);
+        if (this.screenshotRequests.get(requestKey) === request)
+          this.screenshotRequests.delete(requestKey);
       });
-    this.screenshotRequests.set(sceneName, request);
+    this.screenshotRequests.set(requestKey, request);
     return request;
   };
   private async getPreviewSources(obs: OBSWebSocket, epoch: number) {

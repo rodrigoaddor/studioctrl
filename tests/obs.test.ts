@@ -547,6 +547,27 @@ it("uses bounded JPEG screenshots without locking controls and shares concurrent
   expect(requests.filter((r) => r === "GetSourceScreenshot")).toHaveLength(1);
   expect(client.getSnapshot().error).toBeNull();
 });
+it("keeps simultaneous sizes of the same scene separate while sharing matching sizes", async () => {
+  await connect();
+  await client.enableStudio();
+  holdScreenshots = true;
+  const small = client.getScreenshot("Camera", 320);
+  const large = client.getScreenshot("Camera", 1280);
+  const settled = Promise.allSettled([small, large]);
+  expect(small).not.toBe(large);
+  expect(client.getScreenshot("Camera", 1280)).toBe(large);
+  await expect(client.getScreenshot("Camera", 1920)).rejects.toThrow("busy");
+  await expect.poll(() => requests.filter((r) => r === "GetSourceScreenshot").length).toBe(2);
+  expect(screenshotParams).toMatchObject({ imageWidth: 1280 });
+  client.disconnect();
+  await settled;
+});
+it.each([[320.2, 321], [1, 8], [10000, 4096]])("bounds requested screenshot width %s to %s", async (width, expected) => {
+  await connect();
+  await client.enableStudio();
+  await client.getScreenshot("Camera", width);
+  expect(screenshotParams).toMatchObject({ imageWidth: expected });
+});
 it("caps in-flight screenshot requests and releases them on disconnect", async () => {
   await connect();
   await client.enableStudio();
