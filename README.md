@@ -31,7 +31,9 @@ bun run preview
 
 Open the trusted HTTPS preview URL printed by Vite using the certificate hostname (`studioctrl.d.rodr.dev`). Use the browser’s install option (such as **Install app** in Chrome/Edge or **Add to Dock** in Safari). Installation availability depends on the browser; development mode does not register a service worker.
 
-After the first successful load and service-worker installation, the app shell can open without the app server. OBS control always requires a reachable OBS WebSocket connection; a cached app opens disconnected. Saved profiles remain local to that browser/origin, and may need to be entered again in an installed app depending on browser storage behavior.
+After the first successful load and service-worker installation, the app shell can open without the app server. OBS control always requires a reachable OBS WebSocket connection; a cached app must establish a fresh OBS connection. Saved profiles remain local to that browser/origin, and may need to be entered again in an installed app depending on browser storage behavior.
+
+If the browser unloads the page in the background, reopening/reloading the same tab attempts its last active saved connection once. The app shows **Reconnecting…**, then opens the studio on success or returns to Connections on failure or after ten seconds. Use **Cancel** to stop the attempt. **Exit** clears recovery. Recovery uses only an explicitly remembered OBS password; if you did not remember it and OBS requires authentication, reconnect manually. No scene/output state is restored from storage. Browser storage must be available.
 
 New releases show **Reload to update** with a **Later** option. Disconnect OBS in every open StudioCTRL window before accepting; updating can reload those windows. This window’s reload action stays disabled until disconnected. Reopen the app to check for a new release; closing all windows can also apply a waiting update.
 

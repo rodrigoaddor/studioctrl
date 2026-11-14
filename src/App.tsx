@@ -45,6 +45,7 @@ export default function App() {
     generating,
     error,
     showHiddenScenes,
+    restoring,
   } = useStudio();
   const session = status === "connected" ? profile : null;
   const { outputs, refreshOutputs } = useOutputStatuses(client, session);
@@ -233,7 +234,11 @@ export default function App() {
           onDismiss={() => setFullscreenError(null)}
         />
       )}
-      <Routes>
+      {restoring ? (
+        <main className="mx-auto w-[calc(100%-3rem)] max-w-7xl py-6 max-[720px]:w-[calc(100%-2rem)] max-[720px]:py-4">
+          <p role="status" className="text-muted-foreground">Reconnecting to {profile?.name ?? "OBS"}…</p>
+        </main>
+      ) : <Routes>
         <Route
           path="/"
           element={
@@ -246,7 +251,7 @@ export default function App() {
         />
         <Route path="/studio" element={<Studio streaming={outputs?.stream?.active} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      </Routes>}
     </div>
   );
 }

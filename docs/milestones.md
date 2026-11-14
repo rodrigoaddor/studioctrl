@@ -21,6 +21,8 @@ This file owns product scope, decisions, milestone status, and deferred work. Se
 
 Delivered scope:
 
+- Tab-scoped session restoration after reload/browser discard attempts the last active saved profile once, waits for fresh OBS synchronization, and falls back to connections on failure or after ten seconds. Cancel/Exit clear recovery; unsaved passwords remain unsaved. Automated restore/routing, cancellation, timeout/stale-result, credential, and storage regressions pass; actual browser discard/background acceptance remains outstanding.
+
 - Application text is non-selectable except in editable fields, and native context menus are suppressed across routes and portals while scene-tile custom menus remain available. Actual browser text-selection/context-menu acceptance remains outstanding.
 - Native dragging is disabled on scene thumbnails and cached monitor images. Viewport overscroll and horizontal scene-row bounce/chaining are suppressed through CSS where supported. Actual browser/trackpad/touch acceptance remains outstanding.
 - Connection page with profile creation, editing, deletion, selection, and connection, plus automatically refreshed per-profile Online/Offline reachability badges.
@@ -63,7 +65,7 @@ Targeted live verification on 2026-11-11: read-only checks against OBS 33.0.1 / 
 
 Validate the base against real OBS and supported desktop browsers, then fix observed issues. Pay particular attention to collection switches, rapid external changes, interrupted transitions, stale state after failed synchronization, and transitions longer than the current fallback timeout.
 
-Acceptance: document the tested environment and results, add regression coverage for fixes, and resolve or explicitly track reproducible issues. Automatic reconnect and additional controls require a product decision rather than being assumed parts of this milestone.
+Acceptance: document the tested environment and results, add regression coverage for fixes, and resolve or explicitly track reproducible issues. A continuous reconnect loop for a still-loaded page and additional controls require a product decision rather than being assumed parts of this milestone; the authorized single startup restoration attempt is implemented in M1.
 
 ## M3 — Preview and Program video
 
@@ -105,7 +107,7 @@ Remaining acceptance:
 
 **Status: PWA and Cloudflare Workers deployment setup implemented; browser installation/update acceptance and production deployment remain outstanding. Local Vite HTTPS with mkcert is implemented.**
 
-Delivered on 2026-11-12: standalone web manifest, regular/maskable/Apple icons derived from the custom StudioCTRL favicon, production-only app-shell precaching with route fallback, and an explicit update prompt. Applying updates is blocked while this window has an OBS session or connection attempt. Other open windows must be disconnected before accepting an update. Cached startup remains disconnected; live OBS state is never restored. Representative thumbnails have a separate browser-local cache (see M3). Automated update-prompt checks and production service-worker generation passed; installation and two-release updates have not been exercised in a browser.
+Delivered on 2026-11-12: standalone web manifest, regular/maskable/Apple icons derived from the custom StudioCTRL favicon, production-only app-shell precaching with route fallback, and an explicit update prompt. Applying updates is blocked while this window has an OBS session or connection attempt. Other open windows must be disconnected before accepting an update. Cached startup requires a new live OBS connection, with one automatic attempt when this tab has an active-session marker (see M1); live OBS state is never restored from storage. Representative thumbnails have a separate browser-local cache (see M3). Automated update-prompt checks and production service-worker generation passed; installation and two-release updates have not been exercised in a browser.
 
 Cloudflare Workers Static Assets setup added on 2026-11-12: root Wrangler config serving `dist/` with SPA fallback, pinned Wrangler tooling through `bun.lock`, build/deploy/dry-run/local-preview scripts, PWA cache headers, and local/Workers Builds instructions. Production build, Wrangler deployment dry run, and local HTTP checks passed for root/studio fallback, service-worker and manifest content types, and cache headers. No upload or account/domain configuration has been performed.
 

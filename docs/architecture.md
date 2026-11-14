@@ -9,7 +9,8 @@ The app is a browser-only SPA. It maintains one active OBS controller session at
 | Boundary | Responsibility |
 | --- | --- |
 | `src/lib/obs.ts` | `StudioClient`: WebSocket lifecycle, OBS requests/events, state snapshots, synchronization, command guards, and errors. |
-| `src/context.tsx` | One client per provider; React subscribes through `useSyncExternalStore`. |
+| `src/context.tsx` | One client per provider; React subscribes through `useSyncExternalStore`; bounded startup session restoration. |
+| `src/lib/active-session.ts` | Tab-scoped active-profile marker and recovery against current saved profiles; no credential or OBS-state storage. |
 | `src/lib/reachability.ts` | Short-lived, unauthenticated OBS Hello probes with timeout and cancellation. |
 | `src/components/preview-toggle.tsx` | Text-only Show/Hide Previews button above transitions; enables or disables both monitors together. |
 | `src/hooks/use-monitor-mode.ts` | Shared reactive monitor preferences used by individual menus and the combined toggle. |
@@ -43,7 +44,15 @@ The app is a browser-only SPA. It maintains one active OBS controller session at
 | `src/components/ui/` | Generated shadcn/ui primitives using the configured preset. `components.json` configures future additions. |
 | `src/index.css` | Tailwind/shadcn imports, theme tokens, dark-mode variant, and shared base integration. |
 
-Routes use React Router's `BrowserRouter`: `/` manages connections and `/studio` displays the controller. The studio route returns to connections without an active session. During an active connection, the connections route redirects to the studio and the brand link stays in the studio. The single **Exit** button disconnects and returns to connections; saved profiles remain available for the next session. Browser Back cannot open the connection manager while a session remains active. Static hosts need an `index.html` fallback for client routes.
+Routes use React Router's `BrowserRouter`: `/` manages connections and `/studio` displays the controller. The studio route returns to connections without an active session after any startup restoration finishes. During an active connection, the connections route redirects to the studio and the brand link stays in the studio. The single **Exit** button disconnects and returns to connections; saved profiles remain available for the next session. Browser Back cannot open the connection manager while a session remains active. Static hosts need an `index.html` fallback for client routes.
+
+## Session restoration after page reload
+
+After a successful connection and initial synchronization, `StudioClient` writes only the active profile ID and normalized endpoint URL to `sessionStorage` under `studioctrl.active-session.v1`. This tab-scoped marker survives reload/browser discard without persisting live OBS state or additional credentials. Explicit Exit/Cancel, a new connection attempt, and failed restoration clear it; an unexpected socket closure leaves it available for a later page reload. There is no continuous reconnect loop for a page that remains loaded.
+
+At provider startup, the marker must match a currently saved profile and endpoint. The provider makes one connection attempt, using only that profile's explicitly remembered password (or no password). While restoring, the shell displays Reconnecting and defers route redirects/controller content until fresh OBS synchronization finishes. Success opens `/studio`, including when the restored page started at `/`. Authentication/network/synchronization failure or a ten-second timeout returns to the connections page. Cancel disconnects immediately; stale completions/timeouts cannot replace a later manual connection. React StrictMode effect replay reuses the same attempt.
+
+Deleted/edited profiles, malformed markers, and unavailable storage skip recovery. Passwords that were not remembered cannot survive page unloading: authentication-enabled OBS then requires a manual connection from the home page. Recovery never enables Studio Mode, selects scenes, transitions, or starts outputs. New tabs without a marker start disconnected; browser tab duplication/session restoration may copy tab storage according to browser behavior.
 
 ## Local HTTPS
 
@@ -55,7 +64,7 @@ The configured `server.allowedHosts` is `[".d.rodr.dev"]`, inherited by preview.
 
 `vite-plugin-pwa` generates the root-scoped manifest and Workbox service worker during production builds. The browser title and manifest name/short name are StudioCTRL. The manifest uses standalone display, starts at `/`, and supplies PNG icons at 192/512 pixels, a separate maskable icon, and an Apple touch icon. The icons derive from the custom StudioCTRL favicon (three scene tiles and broadcast arcs); `scripts/generate-pwa-icons.ts` regenerates them using Sharp (`bun run generate:icons`). Development service workers are disabled; use a production build and preview for PWA validation.
 
-Workbox precaches built JS, CSS, HTML, bundled fonts, and icons. Navigation fallback serves the cached shell only for `/` and `/studio` (including its trailing slash). There are no service-worker runtime caching rules for external resources, OBS connections, credentials, screenshots, or OBS state. Representative scene thumbnails use the separate IndexedDB cache described under [Screenshot previews](#screenshot-previews). Profiles and preferences remain in localStorage under their existing contracts. Opening a cached shell starts disconnected and requires a new live OBS connection; shell availability does not establish OBS reachability.
+Workbox precaches built JS, CSS, HTML, bundled fonts, and icons. Navigation fallback serves the cached shell only for `/` and `/studio` (including its trailing slash). There are no service-worker runtime caching rules for external resources, OBS connections, credentials, screenshots, or OBS state. Representative scene thumbnails use the separate IndexedDB cache described under [Screenshot previews](#screenshot-previews). Profiles and preferences remain in localStorage under their existing contracts. Opening a cached shell requires a new live OBS connection, automatically attempted when this tab has an active-session marker; shell availability does not establish OBS reachability.
 
 Updates use `registerType: "prompt"`, with no automatic skip-waiting or client claiming. `PwaUpdate` offers **Reload to update** and **Later** when a release is waiting. Reload is disabled while this window is connecting or connected, and errors remain in the update notice. Updates may reload other open app windows, so the notice instructs the operator to disconnect OBS in each window before accepting. Closing all app windows can also allow a waiting worker to activate normally. Registration checks for updates when the app opens; there is no periodic update polling.
 
@@ -201,7 +210,7 @@ Each connection card shows a top-right Checking, Online, or Offline badge. `isOb
 
 Badges check immediately on mount or URL change and schedule another check 15 seconds after each completed check. They keep the last result visible during rechecks. Results stay in component state, not saved profiles. URL edits and leaving/deleting a card cancel its pending probe and recheck timer; outdated results are ignored.
 
-Online means an OBS endpoint is reachable from this browser, not that its password is correct or Studio Mode is enabled. Offline also covers timeouts, non-OBS endpoints, and browser/network restrictions. Connect remains available regardless of the badge result; authentication and session setup still happen only after the operator chooses Connect.
+Online means an OBS endpoint is reachable from this browser, not that its password is correct or Studio Mode is enabled. Offline also covers timeouts, non-OBS endpoints, and browser/network restrictions. Connect remains available regardless of the badge result; authentication and session setup happen after the operator chooses Connect or during the single startup restoration attempt described above.
 
 ## Current limitations to consider when changing behavior
 

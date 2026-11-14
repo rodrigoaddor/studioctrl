@@ -1,5 +1,6 @@
 import OBSWebSocket from "obs-websocket-js/json";
 import type { Profile } from "./profiles";
+import { rememberActiveSession } from "./active-session";
 import {
   generateScenePreviews,
   scenePreviewSources,
@@ -135,6 +136,7 @@ export class StudioClient {
     });
   }
   disconnect = () => {
+    rememberActiveSession(null);
     const old = this.obs;
     this.obs = null;
     this.screenshotAbort.abort();
@@ -226,6 +228,7 @@ export class StudioClient {
       if (this.obs !== obs) return;
       this.update({ status: "connected" });
       await this.refresh();
+      if (this.obs === obs && !this.state.error) rememberActiveSession(profile);
     } catch (error) {
       if (this.obs !== obs) return;
       this.disconnect();
