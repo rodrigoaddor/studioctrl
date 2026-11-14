@@ -18,8 +18,12 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-destructive: var(--destructive);
-  --color-preview: var(--preview-color);
-  --color-program: var(--program-color);
+  --color-preview: var(--preview);
+  --color-preview-foreground: var(--preview-foreground);
+  --color-preview-label: var(--preview-label);
+  --color-program: var(--program);
+  --color-program-foreground: var(--program-foreground);
+  --color-program-label: var(--program-label);
   --font-sans: "Inter Variable", sans-serif;
   --font-mono: "JetBrains Mono Variable", monospace;
   --font-heading: "Outfit Variable", sans-serif;
@@ -54,8 +58,12 @@
 }
 
 :root {
-  --preview-color: #00813c;
-  --program-color: #d90032;
+  --preview: var(--color-green-500);
+  --preview-foreground: var(--color-black);
+  --preview-label: var(--color-green-400);
+  --program: var(--color-red-700);
+  --program-label: var(--color-red-400);
+  --program-foreground: var(--color-white);
   --background: oklch(1 0 0);
   --foreground: oklch(0.148 0.004 228.8);
   --card: oklch(1 0 0);
@@ -91,8 +99,6 @@
 }
 
 .dark {
-  --preview-color: #4ade80;
-  --program-color: #ff304f;
   --background: oklch(0.148 0.004 228.8);
   --foreground: oklch(0.987 0.002 197.1);
   --card: oklch(0.218 0.008 223.9);

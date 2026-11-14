@@ -101,6 +101,31 @@ it("selects scenes for Preview and shows independent Preview and Program indicat
     grid.getByRole("button", { name: "Starting Preview Program" }),
   ).toHaveAttribute("aria-pressed", "true");
 });
+it("shows the video indicator only on scenes containing media, alongside selection labels", () => {
+  vi.mocked(useStudio).mockReturnValue({ client, ...state, mediaScenes: ["Camera"] });
+  const { rerender } = render(app());
+  const tile = screen.getByRole("button", { name: "Camera Preview" });
+  expect(within(tile).getByLabelText("Contains media source")).toHaveClass("right-2", "bottom-2");
+  expect(within(tile).getByText("Preview")).toBeInTheDocument();
+  expect(within(screen.getByRole("button", { name: "Slides" })).queryByLabelText("Contains media source")).not.toBeInTheDocument();
+  vi.mocked(useStudio).mockReturnValue({ client, ...state, mediaScenes: [] });
+  rerender(app());
+  expect(screen.queryByLabelText("Contains media source")).not.toBeInTheDocument();
+});
+it("shows image and video indicators together only on matching scenes", () => {
+  vi.mocked(useStudio).mockReturnValue({ client, ...state, imageScenes: ["Camera", "Slides"], mediaScenes: ["Camera"] });
+  const { rerender } = render(app());
+  const camera = within(screen.getByRole("button", { name: "Camera Preview" }));
+  expect(camera.getByLabelText("Contains image source")).toHaveClass("right-2", "bottom-2");
+  expect(camera.getByLabelText("Contains media source")).toHaveClass("right-7");
+  const slides = within(screen.getByRole("button", { name: "Slides" }));
+  expect(slides.getByLabelText("Contains image source")).toBeInTheDocument();
+  expect(slides.queryByLabelText("Contains media source")).not.toBeInTheDocument();
+  expect(within(screen.getByRole("button", { name: "Starting Program" })).queryByLabelText("Contains image source")).not.toBeInTheDocument();
+  vi.mocked(useStudio).mockReturnValue({ client, ...state });
+  rerender(app());
+  expect(screen.queryByLabelText("Contains image source")).not.toBeInTheDocument();
+});
 it("blocks scene selection and both transition actions while busy", () => {
   vi.mocked(useStudio).mockReturnValue({ client, ...state, busy: true });
   render(app());

@@ -7,11 +7,13 @@ import {
   Maximize,
   Minimize,
   ImageOff,
+  Frame,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { ErrorNotice } from "./components/error-notice";
 import { useOutputStatuses } from "./hooks/use-output-statuses";
+import { useMonitorBorders } from "./hooks/use-monitor-borders";
 import { OutputMenuItems } from "./components/output-menu-items";
 import { OutputStopDialog } from "./components/output-stop-dialog";
 import { OutputBadges } from "./components/output-badges";
@@ -48,6 +50,7 @@ export default function App() {
     restoring,
   } = useStudio();
   const session = status === "connected" ? profile : null;
+  const [showBorders, setShowBorders] = useMonitorBorders();
   const { outputs, refreshOutputs } = useOutputStatuses(client, session);
   const [stopTarget, setStopTarget] = useState<{ output: "stream" | "recording"; session: typeof profile } | null>(null);
   const [outputPending, setOutputPending] = useState(false);
@@ -176,6 +179,12 @@ export default function App() {
                         onCheckedChange={client.setShowHiddenScenes}
                       >
                         <EyeOff /> Show hidden scenes
+                      </DropdownMenuCheckboxItem>
+                      <DropdownMenuCheckboxItem
+                        checked={showBorders}
+                        onCheckedChange={setShowBorders}
+                      >
+                        <Frame /> Show preview borders
                       </DropdownMenuCheckboxItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem

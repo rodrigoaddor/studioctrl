@@ -1,11 +1,13 @@
 import { useRef } from "react";
 import { ContextMenu } from "radix-ui";
-import { Eye, EyeOff, Image, ImageOff } from "lucide-react";
+import { Eye, EyeOff, Image, ImageOff, Video } from "lucide-react";
 import { cn } from "../lib/utils";
 
 export function SceneButton({
   name,
   image,
+  hasMedia = false,
+  hasImage = false,
   isPreview,
   isProgram,
   disabled,
@@ -17,6 +19,8 @@ export function SceneButton({
 }: {
   name: string;
   image?: string;
+  hasMedia?: boolean;
+  hasImage?: boolean;
   isPreview: boolean;
   isProgram: boolean;
   disabled: boolean;
@@ -95,10 +99,22 @@ export function SceneButton({
               {name}
             </span>
           </span>
-          <span className="absolute inset-x-2 bottom-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[10px]">
-            {isPreview && <span className="text-preview">Preview</span>}
-            {isProgram && <span className="text-program">Program</span>}
+          <span className="absolute inset-x-2 top-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[10px]">
+            {isPreview && <span className="text-preview-label">Preview</span>}
+            {isProgram && <span className="text-program-label">Program</span>}
           </span>
+          {hasMedia && (
+            <Video
+              aria-label="Contains media source"
+              className={cn("absolute right-2 bottom-2 size-4", hasImage && "right-7", image && "text-white drop-shadow-md")}
+            />
+          )}
+          {hasImage && (
+            <Image
+              aria-label="Contains image source"
+              className={cn("absolute right-2 bottom-2 size-4", image && "text-white drop-shadow-md")}
+            />
+          )}
         </button>
       </ContextMenu.Trigger>
       <ContextMenu.Portal>

@@ -15,6 +15,8 @@ export function Studio({ streaming }: { streaming?: boolean }) {
     status,
     studio,
     scenes,
+    mediaScenes,
+    imageScenes,
     program,
     preview,
     busy,
@@ -92,6 +94,8 @@ export function Studio({ streaming }: { streaming?: boolean }) {
                     key={scene}
                     name={scene}
                     image={thumbnails[scene]}
+                    hasMedia={mediaScenes.includes(scene)}
+                    hasImage={imageScenes.includes(scene)}
                     isPreview={preview === scene}
                     isProgram={program === scene}
                     disabled={disabled}

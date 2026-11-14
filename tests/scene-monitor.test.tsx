@@ -9,7 +9,7 @@ import { StudioClient } from "../src/lib/obs";
 import * as remote from "../src/lib/remote-preview";
 import { PreviewToggle } from "../src/components/preview-toggle";
 import * as screenshots from "../src/lib/screenshot-preview";
-import { monitorSettingsKey } from "../src/lib/monitor-settings";
+import { monitorSettingsKey, saveMonitorBorders } from "../src/lib/monitor-settings";
 vi.mock("../src/context", () => ({ useStudio: vi.fn() }));
 const client = new StudioClient();
 beforeEach(() => {
@@ -40,6 +40,32 @@ it.each(["preview", "program"] as const)("anchors %s settings beside the scene n
   const settings = screen.getByRole("button", { name: `${kind === "preview" ? "Preview" : "Program"} settings` });
   expect(settings.parentElement?.querySelector('[title="Camera"]')).not.toHaveClass("sm:hidden");
   expect(settings).toHaveClass("col-start-3");
+});
+
+it.each(["obs", "remote"])("toggles both colored picture borders in %s mode without replacing playback", (mode) => {
+  localStorage.setItem(monitorSettingsKey("studio", "preview"), mode);
+  localStorage.setItem(monitorSettingsKey("studio", "program"), mode);
+  const start = vi.spyOn(remote, "startRemotePreview").mockReturnValue(vi.fn());
+  render(<><SceneMonitor kind="preview" sceneName="Camera" /><SceneMonitor kind="program" sceneName="Slides" /></>);
+  expect(document.querySelector('[data-monitor-border="preview"]')).toHaveClass("border-x-3", "border-b-3", "border-preview");
+  expect(document.querySelector('[data-monitor-border="program"]')).toHaveClass("border-program");
+  const players = [...document.querySelectorAll("canvas, video")];
+  const connections = start.mock.calls.length;
+  fireEvent.click(screen.getAllByRole("button", { name: "Expand preview" })[0]);
+  expect(screen.getByRole("dialog").querySelector('[data-monitor-border="preview"]')).toHaveClass("border-preview");
+  act(() => saveMonitorBorders(false));
+  expect(document.querySelector("[data-monitor-border]")).not.toBeInTheDocument();
+  const currentPlayers = [...document.querySelectorAll("canvas, video")];
+  expect(currentPlayers).toHaveLength(players.length);
+  players.forEach((player) => expect(currentPlayers).toContain(player));
+  act(() => saveMonitorBorders(true));
+  expect(document.querySelectorAll("[data-monitor-border]")).toHaveLength(2);
+  expect(start).toHaveBeenCalledTimes(connections);
+});
+
+it("omits colored picture borders in No Preview mode", () => {
+  render(<SceneMonitor kind="preview" sceneName="Camera" />);
+  expect(document.querySelector("[data-monitor-border]")).not.toBeInTheDocument();
 });
 
 it.each(["none", "obs", "remote"])("keeps the header and expand action above the picture in %s mode", (mode) => {

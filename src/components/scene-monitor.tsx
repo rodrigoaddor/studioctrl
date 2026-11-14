@@ -5,6 +5,7 @@ import { ExpandableMonitor } from "./expandable-monitor";
 import { Maximize, Minimize, MonitorPlay } from "lucide-react";
 import { useStudio } from "../context";
 import { useMonitorMode } from "../hooks/use-monitor-mode";
+import { useMonitorBorders } from "../hooks/use-monitor-borders";
 import { useObsPreview } from "../hooks/use-obs-preview";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
@@ -44,6 +45,14 @@ export function SceneMonitor({
     return () => clearTimeout(timer);
   }, [fade]);
   const [mode, setMode] = useMonitorMode(profile?.id ?? "default", kind);
+  const [showBorders] = useMonitorBorders();
+  const accented = showBorders && mode !== "none";
+  const headerForeground = kind === "preview"
+    ? "text-preview-foreground hover:text-preview-foreground focus-visible:text-preview-foreground aria-expanded:text-preview-foreground"
+    : "text-program-foreground hover:text-program-foreground focus-visible:text-program-foreground aria-expanded:text-program-foreground";
+  const headerButtonColors = accented
+    ? cn("hover:bg-black/15 focus-visible:bg-black/15 aria-expanded:bg-black/15 dark:hover:bg-black/15", headerForeground)
+    : "text-white hover:bg-white/15 hover:text-white focus-visible:bg-white/15 focus-visible:text-white aria-expanded:bg-white/15 aria-expanded:text-white dark:hover:bg-white/15";
   const settingsKey = `${profile?.id ?? "default"}:${kind}`;
   const settingsButton = useRef<HTMLButtonElement>(null);
   const [remoteOpen, setRemoteOpen] = useState(false);
@@ -69,6 +78,8 @@ export function SceneMonitor({
       <div className={cn(
         "grid h-9 grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center bg-black/60 text-xs",
         "relative min-w-0 flex-1",
+        accented && "font-medium",
+        accented && (kind === "preview" ? "bg-preview text-preview-foreground" : "bg-program text-program-foreground"),
       )}>
         <span
           className="flex min-w-0 items-center gap-1.5 pl-3"
@@ -81,7 +92,7 @@ export function SceneMonitor({
           <span
             className={cn(
               "size-1.5 shrink-0 rounded-full",
-              kind === "preview" ? "bg-preview" : "bg-program",
+              accented ? "bg-current" : kind === "preview" ? "bg-preview" : "bg-program",
             )}
           />
           {label}
@@ -99,7 +110,7 @@ export function SceneMonitor({
               size="icon-lg"
               ref={settingsButton}
               aria-label={`${label} settings`}
-              className="col-start-3 justify-self-end border-0 text-white shadow-none hover:bg-white/15 hover:text-white focus-visible:bg-white/15 focus-visible:text-white focus-visible:ring-0 aria-expanded:bg-white/15 aria-expanded:text-white dark:hover:bg-white/15"
+              className={cn("col-start-3 justify-self-end border-0 shadow-none focus-visible:ring-0", headerButtonColors)}
             >
               <MonitorPlay />
             </Button>
@@ -124,12 +135,19 @@ export function SceneMonitor({
         </DropdownMenu>
         <Button variant="ghost" size="icon-lg" aria-label={expanded ? "Collapse preview" : "Expand preview"}
           title={expanded ? "Collapse preview" : "Expand preview"}
-          className="border-0 text-white hover:bg-white/15 hover:text-white dark:hover:bg-white/15"
+          className={cn("border-0", headerButtonColors)}
           onClick={() => setExpanded(!expanded)}>
           {expanded ? <Minimize /> : <Maximize />}
         </Button>
       </div>
       }>
+      {accented && (
+        <div
+          aria-hidden="true"
+          data-monitor-border={kind}
+          className={cn("pointer-events-none absolute inset-0 z-10 border-x-3 border-b-3", kind === "preview" ? "border-preview" : "border-program")}
+        />
+      )}
       {mode !== "remote" && (!continuingFade || finishedFade !== fade) && (
         <MonitorPicture
           kind={kind}

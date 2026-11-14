@@ -295,6 +295,26 @@ it("blocks repeated stop requests while waiting for OBS", async () => {
   expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
 });
 
+it("saves the preview borders toggle in the Scenes submenu even while OBS is busy", async () => {
+  vi.mocked(useStudio).mockReturnValue({ client, ...connected, busy: true });
+  const { unmount } = render(app("/studio"));
+  const user = userEvent.setup();
+  async function openScenes() {
+    await user.click(screen.getByRole("button", { name: "OBS actions" }));
+    screen.getByRole("menuitem", { name: "Scenes", exact: true }).focus();
+    await user.keyboard("{ArrowRight}");
+  }
+  await openScenes();
+  const toggle = screen.getByRole("menuitemcheckbox", { name: "Show preview borders" });
+  expect(toggle).toHaveAttribute("aria-checked", "true");
+  await user.click(toggle);
+  expect(localStorage.getItem("studioctrl.monitor.v1:borders")).toBe("false");
+  unmount();
+  render(app("/studio"));
+  await openScenes();
+  expect(screen.getByRole("menuitemcheckbox", { name: "Show preview borders" })).toHaveAttribute("aria-checked", "false");
+});
+
 it("resets previews from the Scenes submenu", async () => {
   const reset = vi.spyOn(client, "resetPreviews").mockResolvedValue(undefined);
   render(app("/studio"));

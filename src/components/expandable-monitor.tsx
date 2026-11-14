@@ -41,7 +41,7 @@ export function ExpandableMonitor({ expanded, onExpandedChange, label, header, c
       </Dialog.Content>
     </Dialog.Portal>
     {createPortal(<div className="flex flex-col">
-      <div className="flex shrink-0 items-center border-b border-white/15">
+      <div className="flex shrink-0 items-center">
         {header}
 
       </div>

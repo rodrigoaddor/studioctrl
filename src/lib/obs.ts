@@ -46,6 +46,8 @@ export interface StudioState {
   previewReady: string | null;
   generating: { scene: string; completed: number; total: number } | null;
   scenes: string[];
+  mediaScenes: string[];
+  imageScenes: string[];
   hiddenScenes: string[];
   showHiddenScenes: boolean;
   preview: string | null;
@@ -68,6 +70,8 @@ const initial: StudioState = {
   previewReady: null,
   generating: null,
   scenes: [],
+  mediaScenes: [],
+  imageScenes: [],
   hiddenScenes: [],
   showHiddenScenes: false,
   preview: null,
@@ -184,6 +188,8 @@ export class StudioClient {
     obs.on("StudioModeStateChanged", refresh);
     obs.on("SceneListChanged", refresh);
     obs.on("SceneNameChanged", refresh);
+    obs.on("SceneItemCreated", refresh);
+    obs.on("SceneItemRemoved", refresh);
     obs.on("CurrentSceneCollectionChanging", () => {
       if (this.obs !== obs) return;
       this.screenshotAbort.abort();
@@ -196,6 +202,8 @@ export class StudioClient {
         previewReady: null,
         generating: null,
         scenes: [],
+        mediaScenes: [],
+        imageScenes: [],
         preview: null,
         program: null,
         previewEpoch: this.state.previewEpoch + 1,
@@ -299,6 +307,8 @@ export class StudioClient {
         );
         this.update({
           thumbnails,
+          mediaScenes: this.state.mediaScenes.filter((name) => keys.has(name)),
+          imageScenes: this.state.imageScenes.filter((name) => keys.has(name)),
           hiddenScenes: [...keys]
             .filter(([, key]) => isSceneHidden(key))
             .map(([name]) => name),
@@ -320,6 +330,23 @@ export class StudioClient {
           currentTransitionKind: current.transitionKind,
           duration: current.transitionFixed ? null : current.transitionDuration,
           syncing: false,
+        });
+        // Discover all tiles independently of thumbnail eligibility or active playback.
+        await Promise.all(
+          [...keys.keys()].map(async (name) => {
+            try {
+              const { media, hasImage } = await scenePreviewSources(obs, name, true);
+              return { name, hasMedia: media.length > 0, hasImage };
+            } catch {
+              return { name, hasMedia: this.state.mediaScenes.includes(name), hasImage: this.state.imageScenes.includes(name) };
+            }
+          }),
+        ).then((names) => {
+          if (this.obs === obs && revision === this.revision && this.state.previewEpoch === epoch)
+            this.update({
+              mediaScenes: names.filter((scene) => scene.hasMedia).map((scene) => scene.name),
+              imageScenes: names.filter((scene) => scene.hasImage).map((scene) => scene.name),
+            });
         });
       } catch (error) {
         if (this.obs === obs && revision === this.revision) {

@@ -3,6 +3,26 @@ type MonitorKind = "preview" | "program";
 const prefix = "studioctrl.monitor.v1:";
 const listeners = new Set<() => void>();
 const volatileModes = new Map<string, MonitorMode>();
+const bordersKey = `${prefix}borders`;
+let volatileBorders: boolean | undefined;
+
+export function readMonitorBorders() {
+  if (volatileBorders !== undefined) return volatileBorders;
+  try {
+    return localStorage.getItem(bordersKey) !== "false";
+  } catch {
+    return true;
+  }
+}
+export function saveMonitorBorders(enabled: boolean) {
+  try {
+    localStorage.setItem(bordersKey, String(enabled));
+    volatileBorders = undefined;
+  } catch {
+    volatileBorders = enabled;
+  }
+  notify();
+}
 
 export function monitorSettingsKey(profileId: string, kind: MonitorKind) {
   return `${prefix}${profileId}:${kind}`;
@@ -44,6 +64,7 @@ export function subscribeMonitorSettings(listener: () => void) {
     if (event.key !== null && !event.key.startsWith(prefix)) return;
     if (event.key === null) volatileModes.clear();
     else volatileModes.delete(event.key);
+    if (event.key === null || event.key === bordersKey) volatileBorders = undefined;
     listener();
   };
   window.addEventListener("storage", onStorage);

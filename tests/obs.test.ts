@@ -772,10 +772,12 @@ it("discards an in-flight Preview seek when the selected scene changes", async (
   holdSceneItems = true;
   const seek = client.seekMedia("Clip", 30000);
   await expect.poll(() => heldSceneReply).toBeDefined();
+  const releaseSeek = heldSceneReply!;
+  holdSceneItems = false;
   preview = "Slides";
   event("CurrentPreviewSceneChanged", { sceneName: preview });
   await expect.poll(() => client.getSnapshot().preview).toBe("Slides");
-  heldSceneReply!();
+  releaseSeek();
   expect(await seek).toBe(false);
   expect(requests).not.toContain("SetMediaInputCursor");
 });
@@ -849,9 +851,37 @@ it("discards pending playback commands after a collection change", async () => {
   const epoch = client.getSnapshot().previewEpoch;
   event("CurrentSceneCollectionChanging");
   await expect.poll(() => client.getSnapshot().previewEpoch).toBe(epoch + 1);
+  holdSceneItems = false;
   heldSceneReply!();
   expect(await action).toBe(false);
   expect(mediaActions).toHaveLength(0);
+});
+
+it("identifies media scenes including disabled nested/group sources, updates on edits, and clears on collection changes", async () => {
+  previewItems.Slides = [{ sourceName: "Nested", sourceType: "OBS_SOURCE_TYPE_SCENE", sceneItemEnabled: false }];
+  previewItems.Nested = [{ sourceName: "Group", isGroup: true, sceneItemEnabled: true }];
+  groupItems.Group = [
+    { sourceName: "Clip", inputKind: "ffmpeg_source", sceneItemEnabled: false },
+    { sourceName: "Logo", inputKind: "image_source", sceneItemEnabled: false },
+  ];
+  previewItems.Camera = [{ sourceName: "Device", inputKind: "av_capture_input", sceneItemEnabled: true }];
+  await connect();
+  await expect.poll(() => client.getSnapshot().mediaScenes).toEqual(["Slides"]);
+  expect(client.getSnapshot().imageScenes).toEqual(["Slides"]);
+  expect(requests).not.toContain("GetMediaInputStatus");
+  expect(requests).not.toContain("SetCurrentPreviewScene");
+  groupItems.Group = [];
+  event("SceneItemRemoved", { sceneName: "Group", sceneItemId: 1 });
+  await expect.poll(() => client.getSnapshot().mediaScenes).toEqual([]);
+  expect(client.getSnapshot().imageScenes).toEqual([]);
+  previewItems.Camera = [{ sourceName: "VLC", inputKind: "vlc_source", sceneItemEnabled: true }];
+  previewItems.Starting = [{ sourceName: "Logo", inputKind: "image_source", sceneItemEnabled: true }];
+  event("SceneItemCreated", { sceneName: "Camera", sceneItemId: 2 });
+  await expect.poll(() => client.getSnapshot().mediaScenes).toEqual(["Camera"]);
+  expect(client.getSnapshot().imageScenes).toEqual(["Starting"]);
+  event("CurrentSceneCollectionChanging");
+  await expect.poll(() => client.getSnapshot().mediaScenes).toEqual([]);
+  expect(client.getSnapshot().imageScenes).toEqual([]);
 });
 
 it("caches natural media frames after 5s without seeking and reuses them until explicit generation", async () => {

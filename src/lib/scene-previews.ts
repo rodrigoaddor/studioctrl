@@ -73,9 +73,11 @@ const captureDeviceKinds = new Set([
 export async function scenePreviewSources(
   obs: OBSWebSocket,
   sceneName: string,
+  includeDisabled = false,
 ) {
   const media = new Set<string>();
   let hasCaptureDevice = false;
+  let hasImage = false;
   const visited = new Set<string>();
   async function visit(name: string, group = false) {
     const key = `${group}:${name}`;
@@ -86,7 +88,7 @@ export async function scenePreviewSources(
       { sceneName: name },
     );
     for (const item of sceneItems) {
-      if (!item.sceneItemEnabled) continue;
+      if (!includeDisabled && !item.sceneItemEnabled) continue;
       const source = String(item.sourceName);
       if (item.isGroup) await visit(source, true);
       else if (item.sourceType === "OBS_SOURCE_TYPE_SCENE") await visit(source);
@@ -94,10 +96,11 @@ export async function scenePreviewSources(
         media.add(source);
       else if (captureDeviceKinds.has(String(item.inputKind)))
         hasCaptureDevice = true;
+      else if (item.inputKind === "image_source") hasImage = true;
     }
   }
   await visit(sceneName);
-  return { media: [...media], hasCaptureDevice };
+  return { media: [...media], hasCaptureDevice, hasImage };
 }
 
 export async function sceneMedia(obs: OBSWebSocket, sceneName: string) {

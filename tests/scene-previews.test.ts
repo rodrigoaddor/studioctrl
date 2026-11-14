@@ -385,6 +385,7 @@ it("detects enabled capture devices through nested scenes/groups and ignores hid
   expect(await scenePreviewSources(options().obs, "Root")).toEqual({
     media: ["Clip"],
     hasCaptureDevice: true,
+    hasImage: false,
   });
   expect(call).toHaveBeenCalledTimes(3);
   call.mockResolvedValue({
@@ -404,6 +405,7 @@ it("detects enabled capture devices through nested scenes/groups and ignores hid
   expect(await scenePreviewSources(options().obs, "Root")).toEqual({
     media: [],
     hasCaptureDevice: false,
+    hasImage: false,
   });
 });
 
