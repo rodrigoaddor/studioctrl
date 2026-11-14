@@ -21,6 +21,8 @@ This file owns product scope, decisions, milestone status, and deferred work. Se
 
 Delivered scope:
 
+- Application text is non-selectable except in editable fields, and native context menus are suppressed across routes and portals while scene-tile custom menus remain available. Actual browser text-selection/context-menu acceptance remains outstanding.
+- Native dragging is disabled on scene thumbnails and cached monitor images. Viewport overscroll and horizontal scene-row bounce/chaining are suppressed through CSS where supported. Actual browser/trackpad/touch acceptance remains outstanding.
 - Connection page with profile creation, editing, deletion, selection, and connection, plus automatically refreshed per-profile Online/Offline reachability badges.
 - Optional remembered passwords and a connection-time prompt otherwise.
 - Add-connection QR scanning via camera or uploaded image/screenshot, filling OBS address/password for review without saving or connecting automatically. Parser and scanner lifecycle/form regressions pass; real camera/image browser acceptance remains outstanding.

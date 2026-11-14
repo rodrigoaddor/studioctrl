@@ -83,7 +83,7 @@ export function Studio({ streaming }: { streaming?: boolean }) {
           </section>
           <section aria-label="Scenes">
             <ScrollArea
-              className="w-full [&>[data-slot=scroll-area-viewport]]:scroll-fade-x"
+              className="w-full [&>[data-slot=scroll-area-viewport]]:scroll-fade-x [&>[data-slot=scroll-area-viewport]]:overscroll-x-none"
               type="auto"
             >
               <div className="grid w-max grid-flow-col auto-cols-[132px] gap-3 p-1">

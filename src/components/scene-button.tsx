@@ -72,6 +72,7 @@ export function SceneButton({
             <img
               src={image}
               alt=""
+              draggable={false}
               className="absolute inset-0 size-full object-cover"
             />
           )}

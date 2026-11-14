@@ -1,7 +1,7 @@
 <!doctype html>
 <html
   lang="en"
-  class="dark [scrollbar-gutter:stable] scheme-light font-sans [font-synthesis:none] [text-rendering:optimizeLegibility] dark:scheme-dark"
+  class="dark overscroll-none [scrollbar-gutter:stable] scheme-light font-sans [font-synthesis:none] [text-rendering:optimizeLegibility] dark:scheme-dark"
 >
   <head>
     <meta charset="UTF-8" />
@@ -15,7 +15,7 @@
     />
     <title>StudioCTRL</title>
   </head>
-  <body class="min-w-[360px] bg-background text-[13px] text-foreground">
+  <body class="min-w-[360px] overscroll-none bg-background text-[13px] text-foreground select-none [&_input]:select-text [&_textarea]:select-text [&_[contenteditable=true]]:select-text [&_[contenteditable='']]:select-text [&_[contenteditable=plaintext-only]]:select-text">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

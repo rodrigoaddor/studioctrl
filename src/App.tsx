@@ -71,6 +71,11 @@ export default function App() {
   const [fullscreen, setFullscreen] = useState(!!document.fullscreenElement);
   const [fullscreenError, setFullscreenError] = useState<string | null>(null);
   useEffect(() => {
+    const preventNativeContextMenu = (event: MouseEvent) => event.preventDefault();
+    document.addEventListener("contextmenu", preventNativeContextMenu);
+    return () => document.removeEventListener("contextmenu", preventNativeContextMenu);
+  }, []);
+  useEffect(() => {
     const update = () => setFullscreen(!!document.fullscreenElement);
     document.addEventListener("fullscreenchange", update);
     return () => document.removeEventListener("fullscreenchange", update);

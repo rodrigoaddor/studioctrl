@@ -16,6 +16,10 @@ Wrangler is a development dependency for Cloudflare Workers Static Assets. `bun 
 
 ## Choosing verification
 
+For application interaction policy changes, verify in a real browser that dragging/double-clicking labels does not select text, inputs/textareas/editable content still support selection and keyboard copy/paste, and native context menus are suppressed on both routes and in portaled dialogs. Check scene-tile custom menus still open with right-click and touch long-press without selecting Preview. DOM tests cannot prove browser text-selection behavior.
+
+Also try dragging scene thumbnails and cached monitor images, including expanded monitors: no native image drag preview should appear. With a trackpad and touch where available, scroll past page and scene-row boundaries to check bounce suppression. Verify the scene row still scrolls horizontally, vertical scrolling over the row reaches the page, and sliders, zoom, and custom scene menus still work. Record browser/OS because overscroll support and system boundary gestures vary.
+
 For implementation changes, run `bun run test` and `bun run build`. Add focused regression coverage for new behavior or fixed bugs where useful. Report failures or checks that could not run.
 
 - `tests/obs.test.ts` uses a real local WebSocket server simulating OBS v5, including authentication. It covers top-to-bottom scene ordering at connection time and after `SceneListChanged`, alongside request ordering, events, session state, and failure behavior.

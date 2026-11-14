@@ -218,6 +218,7 @@ function MonitorPicture({ kind, sceneName, mode, onImageChange }: {
           key={`${previewEpoch}:${sceneName}:${cached}`}
           src={cached}
           alt={`Cached preview of ${sceneName}`}
+          draggable={false}
           className="absolute inset-0 size-full object-contain opacity-75"
         />
       )}
