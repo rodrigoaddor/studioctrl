@@ -1,19 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import {
-  ArrowRight,
-  Check,
-  LoaderCircle,
-  Pencil,
-  Plus,
-  Trash2,
-  X,
-} from "lucide-react";
+import { ArrowRight, Plus, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { ScanQrCode } from "../components/scan-qr-code";
 import { ErrorNotice } from "../components/error-notice";
-import { ConnectionStatus } from "../components/connection-status";
+import { ConnectionCard } from "../components/connection-card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
+import { PasswordInput } from "../components/password-input";
 import { useStudio } from "../context";
 import {
   loadProfiles,
@@ -112,79 +105,27 @@ export function Connections() {
       )}
       <div className="grid grid-cols-3 gap-3 max-[1000px]:grid-cols-2 max-[720px]:grid-cols-1">
         {profiles.map((p) => (
-          <article
-            className="border border-border bg-card p-4 text-card-foreground"
+          <ConnectionCard
             key={p.id}
-          >
-            <div className="mb-1.5 flex items-start justify-between gap-2">
-              <h2 className="font-heading min-w-0 text-[15px] font-medium wrap-anywhere">
-                {p.name}
-              </h2>
-              <ConnectionStatus key={p.url} url={p.url} name={p.name} />
-            </div>
-            <p className="m-0 font-mono text-xs text-muted-foreground wrap-anywhere">
-              {p.url}
-            </p>
-            <div className="mt-3.5 mb-2.5 flex items-center justify-between gap-2">
-              <span className="text-xs text-muted-foreground flex items-center gap-1.5">
-                {p.rememberPassword ? (
-                  <>
-                    <Check size={13} /> Password remembered
-                  </>
-                ) : (
-                  "Ask for password"
-                )}
-              </span>
-              <div className="flex gap-1">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`Edit ${p.name}`}
-                  onClick={() => {
-                    setEditing(p);
-                    setError("");
-                    setFormOpen(true);
-                  }}
-                >
-                  <Pencil />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`Delete ${p.name}`}
-                  onClick={() => {
-                    if (window.confirm(`Delete “${p.name}”?`))
-                      persist(profiles.filter((old) => old.id !== p.id));
-                  }}
-                >
-                  <Trash2 />
-                </Button>
-              </div>
-            </div>
-            <Button
-              variant="outline"
-              className="w-full"
-              disabled={status === "connecting"}
-              onClick={() =>
-                active?.id === p.id && status === "connected"
-                  ? navigate("/studio")
-                  : startConnect(p)
-              }
-            >
-              {status === "connecting" && active?.id === p.id ? (
-                <>
-                  <LoaderCircle className="animate-spin" /> Connecting…
-                </>
-              ) : (
-                <>
-                  {active?.id === p.id && status === "connected"
-                    ? "Open studio"
-                    : "Connect"}{" "}
-                  <ArrowRight />
-                </>
-              )}
-            </Button>
-          </article>
+            profile={p}
+            disabled={status === "connecting"}
+            connecting={status === "connecting" && active?.id === p.id}
+            connected={status === "connected" && active?.id === p.id}
+            onConnect={() =>
+              active?.id === p.id && status === "connected"
+                ? navigate("/studio")
+                : startConnect(p)
+            }
+            onEdit={() => {
+              setEditing(p);
+              setError("");
+              setFormOpen(true);
+            }}
+            onDelete={() => {
+              if (window.confirm(`Delete “${p.name}”?`))
+                persist(profiles.filter((old) => old.id !== p.id));
+            }}
+          />
         ))}
         {profiles.length === 0 && (
           <section className="col-span-full border border-dashed border-border p-6 text-center">
@@ -254,10 +195,9 @@ export function Connections() {
             </label>
             <label className="mt-4 flex flex-col gap-[7px] text-xs">
               Saved password
-              <Input
+              <PasswordInput
                 ref={passwordInput}
                 name="password"
-                type="password"
                 defaultValue={editing?.password ?? ""}
                 autoComplete="new-password"
                 placeholder="Optional"
@@ -326,9 +266,8 @@ export function Connections() {
             </p>
             <label className="mt-4 flex flex-col gap-[7px] text-xs">
               OBS WebSocket password
-              <Input
+              <PasswordInput
                 name="password"
-                type="password"
                 autoFocus
                 autoComplete="off"
                 placeholder="Leave empty if authentication is disabled"

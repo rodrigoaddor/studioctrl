@@ -122,7 +122,7 @@ it("does not let a cancelled restoration time out or overwrite a later manual co
   transport.connect.mockReturnValueOnce(new Promise((done) => { resolve = done; }));
   render(app());
   fireEvent.click(screen.getByRole("button", { name: "Cancel", exact: true }));
-  await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Connect", exact: true })); });
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: `Connect to ${profile.name}`, exact: true })); });
   expect(screen.getByRole("heading", { name: "Studio Mode is disabled" })).toBeInTheDocument();
   await act(async () => { await vi.advanceTimersByTimeAsync(10_000); resolve({}); });
   expect(screen.getByRole("heading", { name: "Studio Mode is disabled" })).toBeInTheDocument();

@@ -261,6 +261,25 @@ it("opens the remote configuration without changing mode on cancel, then saves p
   await user.selectOptions(screen.getByLabelText("Authentication"), "basic");
   await user.type(screen.getByLabelText("Username", { exact: true }), "operator");
   await user.type(screen.getByLabelText("Password", { exact: true }), "private-password");
+  const password = screen.getByLabelText("Password", { exact: true });
+  expect(password).toHaveAttribute("type", "password");
+  await user.click(screen.getByRole("button", { name: "Show password" }));
+  expect(password).toHaveAttribute("type", "text");
+  expect(password).toHaveValue("private-password");
+  await user.click(screen.getByRole("button", { name: "Hide password" }));
+  expect(password).toHaveAttribute("type", "password");
+  await user.selectOptions(screen.getByLabelText("Authentication"), "bearer");
+  const token = screen.getByLabelText("Bearer token", { exact: true });
+  await user.type(token, "private-token");
+  expect(token).toHaveAttribute("type", "password");
+  await user.click(screen.getByRole("button", { name: "Show bearer token" }));
+  expect(token).toHaveAttribute("type", "text");
+  expect(token).toHaveValue("private-token");
+  await user.click(screen.getByRole("button", { name: "Hide bearer token" }));
+  expect(token).toHaveAttribute("type", "password");
+  await user.selectOptions(screen.getByLabelText("Authentication"), "basic");
+  expect(screen.getByLabelText("Password", { exact: true })).toHaveAttribute("type", "password");
+
   await user.click(screen.getByRole("button", { name: "Save and connect" }));
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   expect(localStorage.getItem(monitorSettingsKey("studio", "preview"))).toBe("remote");

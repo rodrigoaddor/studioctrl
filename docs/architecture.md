@@ -32,6 +32,7 @@ The app is a browser-only SPA. It maintains one active OBS controller session at
 | `src/hooks/use-output-statuses.ts` | One session-scoped output-status polling loop shared by the appbar badges and menu. |
 | `src/components/output-menu-items.tsx` | Start-output menu actions and active-output elapsed times. |
 | `src/components/output-stop-dialog.tsx` | Explicit stop confirmation, pending/error feedback, and focus restoration. |
+| `src/components/connection-card.tsx` | Whole-card connection action, busy feedback, and profile context menu. |
 | `src/components/connection-status.tsx` | Per-profile reachability badge and automatic rechecks while mounted. |
 | `src/components/scan-qr-code.tsx` | Add-connection camera/image QR scanner with media lifecycle cleanup. |
 | `src/lib/obs-qr.ts` | OBS QR payload validation and credential extraction. |
@@ -45,6 +46,10 @@ The app is a browser-only SPA. It maintains one active OBS controller session at
 | `src/index.css` | Tailwind/shadcn imports, theme tokens, dark-mode variant, and shared base integration. |
 
 Routes use React Router's `BrowserRouter`: `/` manages connections and `/studio` displays the controller. The studio route returns to connections without an active session after any startup restoration finishes. During an active connection, the connections route redirects to the studio and the brand link stays in the studio. The single **Exit** button disconnects and returns to connections; saved profiles remain available for the next session. Browser Back cannot open the connection manager while a session remains active. Static hosts need an `index.html` fallback for client routes.
+
+Connection cards are native buttons: clicking/tapping anywhere or pressing Enter/Space starts the existing remembered-password connection or session-password prompt. While connecting, all cards use guarded `aria-disabled` activation; the active card shows Connecting… in its existing metadata row. Each card has a non-modal Radix context menu with **Edit connection** and **Delete connection**, preserving the deletion confirmation. Right-click, touch long press, the Context Menu key, and Shift+F10 open it without connecting; long-press follow-up clicks are suppressed until a new activation gesture. Pointer movement/cancellation cancels the pending long press. Profile forms and persistence remain owned by the connections page.
+
+Connection profile/password dialogs and Remote Preview Basic passwords/bearer tokens use `src/components/password-input.tsx`, wrapping the shared Input with an accessible Show/Hide icon button. Fields start masked and reset when remounted (including reopening dialogs); toggling preserves the current value and does not submit the form. Visibility is local UI state and is never persisted. The input retains its form props and ref for QR imports and native form submission.
 
 ## Session restoration after page reload
 
@@ -84,7 +89,7 @@ Use shadcn/ui preset `b1Zirub0S`: Lyra style, mist base, blue theme/chart colors
 
 Style layouts and components directly with Tailwind utilities, including responsive, focus, disabled, dialog backdrop, and selected-state variants. Keep `src/index.css` limited to theme/base integration and exceptional styles that Tailwind cannot reasonably express, such as complex custom animations. Reuse components for recurring UI patterns instead of introducing CSS classes that bundle ordinary utilities.
 
-The document body disables text selection using Tailwind utilities, with explicit text-selection overrides for inputs, textareas, and editable content. This covers both routes and portaled dialogs/menus while preserving form editing and keyboard copy/paste. `App` suppresses the native browser context menu with a document-level bubbling listener, cleaned up on unmount; scene-tile custom right-click/long-press menus continue to handle their own events. Native context menus are suppressed in editable fields too.
+The document body disables text selection using Tailwind utilities, with explicit text-selection overrides for inputs, textareas, and editable content. This covers both routes and portaled dialogs/menus while preserving form editing and keyboard copy/paste. `App` suppresses the native browser context menu with a document-level bubbling listener, cleaned up on unmount; scene-tile and connection-card custom right-click/long-press menus continue to handle their own events. Native context menus are suppressed in editable fields too.
 
 Scene thumbnails and cached monitor images use `draggable={false}` to prevent native image dragging without blocking pointer gestures. The HTML root and body use `overscroll-none` to suppress viewport bounce and boundary gestures where supported. The scenes scroll viewport uses `overscroll-x-none` to suppress horizontal bounce/chaining while allowing vertical scrolling to reach the page. Normal scrolling, zoom, and slider gestures remain available; actual overscroll behavior depends on the browser/OS.
 

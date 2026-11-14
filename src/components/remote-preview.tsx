@@ -4,6 +4,7 @@ import { TriangleAlert, Volume, Volume1, Volume2, VolumeX } from "lucide-react";
 import { readRemoteSettings, saveRemoteSettings, startRemotePreview, type RemoteSettings } from "../lib/remote-preview";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import { PasswordInput } from "./password-input";
 import { Slider } from "./ui/slider";
 
 export function RemotePreviewDialog({ settingsKey, label, onSave, onClose, onRestoreFocus }: {
@@ -35,9 +36,9 @@ export function RemotePreviewDialog({ settingsKey, label, onSave, onClose, onRes
           </label>
           {draft.auth === "basic" && <>
             <label className="grid gap-2 text-xs">Username<Input required value={draft.username} autoComplete="username" pattern="[^:]+" title="Username cannot contain a colon" onChange={(e) => setDraft({ ...draft, username: e.target.value })} /></label>
-            <label className="grid gap-2 text-xs">Password<Input type="password" value={draft.password} autoComplete="current-password" onChange={(e) => setDraft({ ...draft, password: e.target.value })} /></label>
+            <label className="grid gap-2 text-xs">Password<PasswordInput value={draft.password} autoComplete="current-password" onChange={(e) => setDraft({ ...draft, password: e.target.value })} /></label>
           </>}
-          {draft.auth === "bearer" && <label className="grid gap-2 text-xs">Bearer token<Input required type="password" value={draft.token} autoComplete="off" onChange={(e) => setDraft({ ...draft, token: e.target.value })} /></label>}
+          {draft.auth === "bearer" && <label className="grid gap-2 text-xs">Bearer token<PasswordInput required secretLabel="bearer token" value={draft.token} autoComplete="off" onChange={(e) => setDraft({ ...draft, token: e.target.value })} /></label>}
           {draft.auth !== "none" && <label className="flex items-start gap-2 text-xs"><input type="checkbox" checked={draft.remember} onChange={(e) => setDraft({ ...draft, remember: e.target.checked })} />Remember credentials in this browser (stored without encryption)</label>}
           <p className="text-xs text-muted-foreground">Click the preview to show mute and volume controls. Audio is off by default. The server must allow this app’s origin through CORS and advertise reachable WebRTC addresses.</p>
           {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
