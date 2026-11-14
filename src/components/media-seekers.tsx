@@ -14,13 +14,18 @@ function time(milliseconds: number | null) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-function MediaSeeker({ media, stale, optimisticCursor, onSeek }: {
+type PlaybackAction = "play" | "pause" | "stop";
+type PendingPlayback = { state: string; acknowledged: boolean };
+
+function MediaSeeker({ media, stale, optimisticCursor, playbackPending, onPlayback, onSeek }: {
   media: ActiveMedia;
   stale: boolean;
   optimisticCursor?: number;
+  playbackPending: boolean;
+  onPlayback: (name: string, action: PlaybackAction) => void;
   onSeek: (name: string, cursor: number) => void;
 }) {
-  const { client, busy, syncing } = useStudio();
+  const { busy, syncing } = useStudio();
   const [draft, setDraft] = useState<number | null>(null);
   const [dragging, setDragging] = useState(false);
   const pending = useRef<number | null>(null);
@@ -29,13 +34,15 @@ function MediaSeeker({ media, stale, optimisticCursor, onSeek }: {
   const shared = media.preview && media.program;
   const available = !stale && media.duration !== null && Number.isFinite(media.duration) && media.duration > 0 &&
     ["OBS_MEDIA_STATE_PLAYING", "OBS_MEDIA_STATE_PAUSED"].includes(media.state);
-  const blocked = busy || syncing;
+  const blocked = busy || syncing || playbackPending;
   const showDragTime = dragging && available && !blocked;
   const playing = media.state === "OBS_MEDIA_STATE_PLAYING";
   const canPlayPause = !stale && ["OBS_MEDIA_STATE_PLAYING", "OBS_MEDIA_STATE_PAUSED", "OBS_MEDIA_STATE_STOPPED", "OBS_MEDIA_STATE_ENDED"].includes(media.state);
   const canStop = !stale && ["OBS_MEDIA_STATE_PLAYING", "OBS_MEDIA_STATE_PAUSED", "OBS_MEDIA_STATE_OPENING", "OBS_MEDIA_STATE_BUFFERING"].includes(media.state);
-  const displayedCursor = draft ?? optimisticCursor ?? media.cursor;
-  const cursor = Math.max(0, Math.min(displayedCursor ?? 0, media.duration ?? 0));
+  const stopped = media.state === "OBS_MEDIA_STATE_STOPPED";
+  const displayedDuration = stopped ? null : media.duration;
+  const displayedCursor = stopped ? null : draft ?? optimisticCursor ?? media.cursor;
+  const cursor = Math.max(0, Math.min(displayedCursor ?? 0, displayedDuration ?? 0));
   const commit = () => {
     const value = pending.current;
     pending.current = null;
@@ -56,7 +63,7 @@ function MediaSeeker({ media, stale, optimisticCursor, onSeek }: {
           {media.preview && <span className="shrink-0 text-preview">Preview</span>}
           {media.program && <span className="shrink-0 text-program">Program</span>}
         </div>
-        <span className="shrink-0 font-mono text-muted-foreground tabular-nums">{time(displayedCursor)} / {time(media.duration)}</span>
+        <span className="shrink-0 font-mono text-muted-foreground tabular-nums">{time(displayedCursor)} / {time(displayedDuration)}</span>
       </div>
       <div className="flex items-center gap-3">
         <div className="flex shrink-0 gap-1">
@@ -69,7 +76,7 @@ function MediaSeeker({ media, stale, optimisticCursor, onSeek }: {
             aria-disabled={blocked || !canPlayPause}
             disabled={!canPlayPause}
             onClick={() => {
-              if (!blocked && canPlayPause) void client.setMediaPlayback(media.name, playing ? "pause" : "play");
+              if (!blocked && canPlayPause) onPlayback(media.name, playing ? "pause" : "play");
             }}
           >
             {playing ? <Pause /> : <Play />}
@@ -83,7 +90,7 @@ function MediaSeeker({ media, stale, optimisticCursor, onSeek }: {
             aria-disabled={blocked || !canStop}
             disabled={!canStop}
             onClick={() => {
-              if (!blocked && canStop) void client.setMediaPlayback(media.name, "stop");
+              if (!blocked && canStop) onPlayback(media.name, "stop");
             }}
           >
             <Square /> Stop
@@ -93,7 +100,7 @@ function MediaSeeker({ media, stale, optimisticCursor, onSeek }: {
           thumbProps={{
             "aria-label": `Seek ${media.name}`,
             "aria-describedby": [shared && sharedNoteId, showDragTime && dragTimeId].filter(Boolean).join(" ") || undefined,
-            "aria-valuetext": `${time(cursor)} of ${time(media.duration)}`,
+            "aria-valuetext": `${time(stopped ? null : cursor)} of ${time(displayedDuration)}`,
             "aria-disabled": blocked || !available,
             children: showDragTime ? (
               <span
@@ -165,17 +172,19 @@ export function MediaSeekers() {
   const [error, setError] = useState(false);
   const [errorDismissed, setErrorDismissed] = useState(false);
   const [optimisticCursors, setOptimisticCursors] = useState(() => new Map<string, number>());
-  const seekState = useRef({
+  const [optimisticPlayback, setOptimisticPlayback] = useState(() => new Map<string, PendingPlayback>());
+  const commandState = useRef({
+    playback: new Map<string, PendingPlayback>(),
     pending: new Map<string, { cursor: number; acknowledged: boolean }>(),
     revision: 0,
   });
   const updateOptimisticCursors = () => {
-    setOptimisticCursors(new Map([...seekState.current.pending].map(([name, seek]) => [name, seek.cursor])));
+    setOptimisticCursors(new Map([...commandState.current.pending].map(([name, seek]) => [name, seek.cursor])));
   };
   const seek = async (name: string, cursor: number) => {
     const pending = { cursor, acknowledged: false };
-    seekState.current.pending.set(name, pending);
-    seekState.current.revision++;
+    commandState.current.pending.set(name, pending);
+    commandState.current.revision++;
     updateOptimisticCursors();
     let applied = false;
     try {
@@ -183,14 +192,37 @@ export function MediaSeekers() {
     } catch {
       // StudioClient owns request error feedback; restore the last OBS position.
     } finally {
-      if (seekState.current.pending.get(name) === pending) {
+      if (commandState.current.pending.get(name) === pending) {
         if (applied) pending.acknowledged = true;
-        else { seekState.current.pending.delete(name); updateOptimisticCursors(); }
+        else { commandState.current.pending.delete(name); updateOptimisticCursors(); }
+      }
+    }
+  };
+  const playback = async (name: string, action: PlaybackAction) => {
+    const tracker = commandState.current;
+    if (tracker.playback.get(name)?.acknowledged === false) return;
+    const pending = {
+      state: action === "play" ? "OBS_MEDIA_STATE_PLAYING" : action === "pause" ? "OBS_MEDIA_STATE_PAUSED" : "OBS_MEDIA_STATE_STOPPED",
+      acknowledged: false,
+    };
+    tracker.playback.set(name, pending);
+    tracker.revision++;
+    setOptimisticPlayback(new Map(tracker.playback));
+    let applied = false;
+    try {
+      applied = await client.setMediaPlayback(name, action);
+    } catch {
+      // StudioClient owns request feedback; restore the last OBS playback state.
+    } finally {
+      if (tracker.playback.get(name) === pending) {
+        if (applied) pending.acknowledged = true;
+        else tracker.playback.delete(name);
+        setOptimisticPlayback(new Map(tracker.playback));
       }
     }
   };
   useEffect(() => {
-    const tracker = seekState.current;
+    const tracker = commandState.current;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
@@ -198,12 +230,17 @@ export function MediaSeekers() {
         if (document.visibilityState !== "hidden") {
           const revision = tracker.revision;
           const pending = [...tracker.pending];
-          const waitingForCommand = pending.some(([, seek]) => !seek.acknowledged);
+          const pendingPlayback = [...tracker.playback];
+          const waitingForCommand = [...pending, ...pendingPlayback].some(([, command]) => !command.acknowledged);
           const result = await client.getActiveMedia();
-          if (!cancelled && revision === tracker.revision && !waitingForCommand) {
+          if (result !== null && !cancelled && revision === tracker.revision && !waitingForCommand) {
             for (const [name, seek] of pending) {
               if (tracker.pending.get(name) === seek) tracker.pending.delete(name);
             }
+            for (const [name, command] of pendingPlayback) {
+              if (tracker.playback.get(name) === command) tracker.playback.delete(name);
+            }
+            setOptimisticPlayback(new Map(tracker.playback));
             setOptimisticCursors(new Map([...tracker.pending].map(([name, seek]) => [name, seek.cursor])));
             setMedia(result);
             setError(false);
@@ -217,7 +254,7 @@ export function MediaSeekers() {
       }
     };
     void poll();
-    return () => { cancelled = true; clearTimeout(timer); tracker.pending.clear(); tracker.revision++; };
+    return () => { cancelled = true; clearTimeout(timer); tracker.pending.clear(); tracker.playback.clear(); tracker.revision++; };
   }, [client]);
   const controllableMedia = media.filter((source) => !source.live);
   if (!controllableMedia.length && !error) return null;
@@ -246,7 +283,15 @@ export function MediaSeekers() {
             <section key={kind} aria-label={`${label} media`} className="grid min-w-0 gap-3">
               <h3 className={`font-heading text-sm font-medium ${kind === "preview" ? "text-preview" : "text-program"}`}>{label}</h3>
               {sources.length ? sources.map((source) => (
-                <MediaSeeker key={source.name} media={source} stale={error} optimisticCursor={optimisticCursors.get(source.name)} onSeek={(name, cursor) => void seek(name, cursor)} />
+                <MediaSeeker
+                  key={source.name}
+                  media={{ ...source, state: optimisticPlayback.get(source.name)?.state ?? source.state }}
+                  stale={error}
+                  playbackPending={optimisticPlayback.get(source.name)?.acknowledged === false}
+                  onPlayback={(name, action) => void playback(name, action)}
+                  optimisticCursor={optimisticCursors.get(source.name)}
+                  onSeek={(name, cursor) => void seek(name, cursor)}
+                />
               )) : <p className="text-xs text-muted-foreground">No active media in {label}.</p>}
             </section>
           );

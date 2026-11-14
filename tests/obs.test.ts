@@ -627,6 +627,26 @@ it("discovers only active media, seeks in milliseconds, and keeps scene selectio
   expect(await client.getActiveMedia()).toEqual([]);
 });
 
+it.each([
+  ["OBS_MEDIA_STATE_STOPPED", "play"],
+  ["OBS_MEDIA_STATE_PLAYING", "pause"],
+] as const)("discards a media poll overlapping %s → %s without reporting no active media", async (state, action) => {
+  await connect();
+  await client.enableStudio();
+  mediaState = state;
+  expect(await client.getActiveMedia()).toHaveLength(1);
+  holdSceneItems = true;
+  const pending = client.getActiveMedia();
+  await expect.poll(() => heldSceneReply).toBeDefined();
+  const releasePoll = heldSceneReply!;
+  holdSceneItems = false;
+  await client.setMediaPlayback("Clip", action);
+  releasePoll();
+  // A discarded snapshot must be distinguishable from a confirmed empty scene.
+  expect(await pending).toBeNull();
+  expect(await client.getActiveMedia()).toHaveLength(1);
+});
+
 it("guards media seeking against invalid positions, inactive sources, and unavailable playback", async () => {
   await connect();
   expect(await client.seekMedia("Clip", 1000)).toBe(false);
@@ -655,7 +675,7 @@ it("sends exact near-end positions for an 18-second clip", async () => {
   for (const target of [16000, 17000, 18000]) {
     expect(await client.seekMedia("Clip", target)).toBe(true);
     expect(mediaCursor).toBe(target);
-    expect((await client.getActiveMedia())[0].cursor).toBe(target);
+    expect((await client.getActiveMedia())![0].cursor).toBe(target);
   }
 });
 
@@ -722,9 +742,9 @@ it("discards an in-flight Preview seek when the selected scene changes", async (
 it("pauses, resumes, stops, and restarts Program media with explicit OBS actions", async () => {
   await connect();
   await client.enableStudio();
-  await client.setMediaPlayback("Clip", "pause");
+  expect(await client.setMediaPlayback("Clip", "pause")).toBe(true);
   expect(mediaState).toBe("OBS_MEDIA_STATE_PAUSED");
-  await client.setMediaPlayback("Clip", "pause");
+  expect(await client.setMediaPlayback("Clip", "pause")).toBe(false);
   expect(mediaActions).toHaveLength(1);
   await client.setMediaPlayback("Clip", "play");
   expect(mediaCursor).toBe(5000);
@@ -775,7 +795,7 @@ it("guards playback actions when unavailable or busy and reports request errors"
   event("SceneTransitionVideoEnded");
   await expect.poll(() => client.getSnapshot().syncing || client.getSnapshot().busy).toBe(false);
   rejectMediaAction = true;
-  await client.setMediaPlayback("Clip", "stop");
+  expect(await client.setMediaPlayback("Clip", "stop")).toBe(false);
   expect(client.getSnapshot()).toMatchObject({ busy: false, error: "Playback failed" });
 });
 
@@ -789,7 +809,7 @@ it("discards pending playback commands after a collection change", async () => {
   event("CurrentSceneCollectionChanging");
   await expect.poll(() => client.getSnapshot().previewEpoch).toBe(epoch + 1);
   heldSceneReply!();
-  await action;
+  expect(await action).toBe(false);
   expect(mediaActions).toHaveLength(0);
 });
 
@@ -1031,13 +1051,13 @@ it("classifies live media for controls even while paused or stopped, while retai
   await connect(); await client.enableStudio();
   for (const state of ["OBS_MEDIA_STATE_PLAYING", "OBS_MEDIA_STATE_PAUSED", "OBS_MEDIA_STATE_STOPPED"]) {
     mediaState = state;
-    expect((await client.getActiveMedia())[0]).toMatchObject({ name: "Clip", live: true });
+    expect((await client.getActiveMedia())![0]).toMatchObject({ name: "Clip", live: true });
   }
   mediaDuration = 18000;
-  expect((await client.getActiveMedia())[0].live).toBe(false);
+  expect((await client.getActiveMedia())![0].live).toBe(false);
   mediaDuration = null;
   mediaInputSettings.Clip.inputSettings.is_local_file = true;
-  expect((await client.getActiveMedia())[0].live).toBe(false);
+  expect((await client.getActiveMedia())![0].live).toBe(false);
 });
 
 it("records the Fade start and configured duration before OBS swaps scenes", async () => {

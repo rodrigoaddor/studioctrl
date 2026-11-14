@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { Studio } from "../src/pages/studio";
@@ -256,7 +256,7 @@ it("opens actions on touch long press without selecting the scene", async () => 
   const pointer = new Event("pointerdown", { bubbles: true });
   Object.assign(pointer, { pointerType: "touch", clientX: 20, clientY: 20 });
   fireEvent(tile, pointer);
-  await vi.advanceTimersByTimeAsync(750);
+  await act(async () => { await vi.advanceTimersByTimeAsync(750); });
   expect(screen.getByRole("menuitem", { name: "Hide scene" })).toBeInTheDocument();
   fireEvent.click(tile);
   expect(select).not.toHaveBeenCalled();

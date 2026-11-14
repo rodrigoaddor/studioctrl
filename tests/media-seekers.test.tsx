@@ -30,7 +30,7 @@ beforeEach(() => {
   vi.mocked(useStudio).mockReturnValue({ client, ...client.getSnapshot() });
   vi.spyOn(client, "getActiveMedia").mockResolvedValue([clip]);
   vi.spyOn(client, "seekMedia").mockResolvedValue(true);
-  vi.spyOn(client, "setMediaPlayback").mockResolvedValue(undefined);
+  vi.spyOn(client, "setMediaPlayback").mockResolvedValue(true);
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 const mount = async () => {
@@ -79,6 +79,25 @@ it("defaults to expanded for malformed preferences and works when storage is una
   expect(toggle).toHaveAttribute("aria-expanded", "false");
   fireEvent.click(toggle);
   expect(screen.getByRole("slider", { name: "Seek Clip" })).toBeVisible();
+});
+
+it("keeps the same controls through discarded polls and still removes confirmed inactive media", async () => {
+  await mount();
+  const section = screen.getByRole("region", { name: "Active media" });
+  const slider = screen.getByRole("slider", { name: "Seek Clip" });
+  fireEvent.click(screen.getByRole("button", { name: "Pause Clip" }));
+  vi.mocked(client.getActiveMedia).mockResolvedValueOnce(null);
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+  expect(screen.getByRole("region", { name: "Active media" })).toBe(section);
+  expect(screen.getByRole("slider", { name: "Seek Clip" })).toBe(slider);
+  expect(screen.queryByText("Unable to load active media. Retrying…")).not.toBeInTheDocument();
+  vi.mocked(client.getActiveMedia).mockResolvedValue([{ ...clip, state: "OBS_MEDIA_STATE_PAUSED" }]);
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+  expect(screen.getByRole("button", { name: "Play Clip" })).toBeEnabled();
+  expect(screen.getByRole("slider", { name: "Seek Clip" })).toBe(slider);
+  vi.mocked(client.getActiveMedia).mockResolvedValue([]);
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+  expect(screen.queryByRole("region", { name: "Active media" })).not.toBeInTheDocument();
 });
 
 function scrub(slider: HTMLElement, value: number) {
@@ -336,9 +355,10 @@ it("groups Preview and Program media separately and shows shared sources in both
   for (const group of [preview, program]) {
     expect(group.getByRole("slider", { name: "Seek Shared clip" }))
       .toHaveAccessibleDescription("Shared source: playback controls and seeking also change Program playback.");
-    fireEvent.click(group.getByRole("button", { name: "Pause Shared clip" }));
   }
-  expect(client.setMediaPlayback).toHaveBeenCalledTimes(2);
+  fireEvent.click(preview.getByRole("button", { name: "Pause Shared clip" }));
+  expect(program.getByRole("button", { name: "Play Shared clip" })).toHaveAttribute("aria-disabled", "true");
+  expect(client.setMediaPlayback).toHaveBeenCalledTimes(1);
   expect(client.setMediaPlayback).toHaveBeenLastCalledWith("Shared clip", "pause");
   const slider = screen.getByRole("slider", { name: "Seek Preview clip" });
   scrub(slider, 12000);
@@ -354,6 +374,7 @@ it("shows Pause while playing and Play while paused/stopped, and sends Stop sepa
   await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
   fireEvent.click(screen.getByRole("button", { name: "Play Clip" }));
   expect(client.setMediaPlayback).toHaveBeenLastCalledWith("Clip", "play");
+  await act(async () => {});
   fireEvent.click(screen.getByRole("button", { name: "Stop Clip" }));
   expect(client.setMediaPlayback).toHaveBeenLastCalledWith("Clip", "stop");
   vi.mocked(client.getActiveMedia).mockResolvedValue([{ ...clip, state: "OBS_MEDIA_STATE_STOPPED", duration: null, cursor: null }]);
@@ -361,6 +382,101 @@ it("shows Pause while playing and Play while paused/stopped, and sends Stop sepa
   expect(screen.getByRole("button", { name: "Play Clip" })).not.toBeDisabled();
   expect(screen.getByRole("button", { name: "Stop Clip" })).toBeDisabled();
   expect(screen.getByRole("slider")).toHaveAttribute("aria-disabled", "true");
+});
+
+it("resets stopped media to the start and hides both times optimistically and after polling", async () => {
+  vi.mocked(client.getActiveMedia).mockResolvedValue([{ ...clip, preview: true }]);
+  let finishCommand!: (applied: boolean) => void;
+  vi.mocked(client.setMediaPlayback).mockImplementation(() => new Promise((resolve) => { finishCommand = resolve; }));
+  await mount();
+  fireEvent.click(screen.getAllByRole("button", { name: "Stop Clip" })[0]);
+  const expectStopped = () => {
+    expect(screen.getAllByText("--:-- / --:--")).toHaveLength(2);
+    for (const slider of screen.getAllByRole("slider")) {
+      expect(slider).toHaveAttribute("aria-valuenow", "0");
+      expect(slider).toHaveAttribute("aria-valuetext", "--:-- of --:--");
+      expect(slider).toHaveAttribute("aria-disabled", "true");
+    }
+  };
+  expectStopped();
+  await act(async () => { finishCommand(true); });
+  // Even if OBS retains the old cursor/duration, STOPPED must render at the start.
+  vi.mocked(client.getActiveMedia).mockResolvedValue([{ ...clip, preview: true, state: "OBS_MEDIA_STATE_STOPPED" }]);
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+  expectStopped();
+});
+
+it.each([
+  ["OBS_MEDIA_STATE_STOPPED", "Play", "play", "Pause"],
+  ["OBS_MEDIA_STATE_PLAYING", "Pause", "pause", "Play"],
+  ["OBS_MEDIA_STATE_PLAYING", "Stop", "stop", "Play"],
+] as const)("optimistically applies %s → %s to both copies until a fresh read after acknowledgment", async (state, label, action, nextLabel) => {
+  const shared = { ...clip, preview: true, state };
+  vi.mocked(client.getActiveMedia).mockResolvedValue([shared]);
+  let finishCommand!: (applied: boolean) => void;
+  vi.mocked(client.setMediaPlayback).mockImplementation(() => new Promise((resolve) => { finishCommand = resolve; }));
+  await mount();
+  let finishOldRead!: (media: ActiveMedia[]) => void;
+  vi.mocked(client.getActiveMedia).mockReturnValueOnce(new Promise((resolve) => { finishOldRead = resolve; }));
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+  fireEvent.click(screen.getAllByRole("button", { name: `${label} Clip` })[0]);
+  expect(client.setMediaPlayback).toHaveBeenCalledExactlyOnceWith("Clip", action);
+  for (const button of screen.getAllByRole("button", { name: `${nextLabel} Clip` })) {
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(button);
+  }
+  expect(client.setMediaPlayback).toHaveBeenCalledTimes(1);
+  for (const stop of screen.getAllByRole("button", { name: "Stop Clip" })) {
+    expect(stop.disabled).toBe(action === "stop");
+  }
+  await act(async () => { finishOldRead([]); });
+  expect(screen.getAllByRole("button", { name: `${nextLabel} Clip` })).toHaveLength(2);
+  // A poll started while the playback command is pending cannot clear optimism.
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+  expect(screen.getAllByRole("button", { name: `${nextLabel} Clip` })).toHaveLength(2);
+  await act(async () => { finishCommand(true); });
+  vi.mocked(client.getActiveMedia).mockResolvedValueOnce(null);
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+  expect(screen.getAllByRole("button", { name: `${nextLabel} Clip` })).toHaveLength(2);
+  // Fresh OBS state is authoritative even when it differs from the requested state.
+  vi.mocked(client.getActiveMedia).mockResolvedValue([{ ...shared, state: "OBS_MEDIA_STATE_PAUSED" }]);
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+  expect(screen.getAllByRole("button", { name: "Play Clip" })).toHaveLength(2);
+  for (const stop of screen.getAllByRole("button", { name: "Stop Clip" })) expect(stop).toBeEnabled();
+});
+
+it.each([false, "reject"] as const)("rolls back optimistic playback when the command returns %s", async (result) => {
+  let finishCommand!: () => void;
+  vi.mocked(client.setMediaPlayback).mockImplementation(() => new Promise((resolve, reject) => {
+    finishCommand = () => result === false ? resolve(false) : reject(new Error("Failed"));
+  }));
+  await mount();
+  fireEvent.click(screen.getByRole("button", { name: "Stop Clip" }));
+  expect(screen.getByRole("button", { name: "Play Clip" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Stop Clip" })).toBeDisabled();
+  await act(async () => { finishCommand(); });
+  expect(screen.getByRole("button", { name: "Pause Clip" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Stop Clip" })).toBeEnabled();
+  expect(screen.getByText("0:05 / 1:00")).toBeInTheDocument();
+  expect(screen.getByRole("slider")).toHaveAttribute("aria-valuenow", "5000");
+});
+
+it("preserves optimistic playback on polling errors, and ignores completion after unmount", async () => {
+  let finishCommand!: (applied: boolean) => void;
+  vi.mocked(client.setMediaPlayback).mockImplementation(() => new Promise((resolve) => { finishCommand = resolve; }));
+  const view = await mount();
+  fireEvent.click(screen.getByRole("button", { name: "Pause Clip" }));
+  await act(async () => { finishCommand(true); });
+  vi.mocked(client.getActiveMedia).mockRejectedValue(new Error("Unavailable"));
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+  expect(screen.getByRole("button", { name: "Play Clip" })).toBeDisabled();
+  vi.mocked(client.getActiveMedia).mockResolvedValue([{ ...clip, state: "OBS_MEDIA_STATE_PAUSED" }]);
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+  fireEvent.click(screen.getByRole("button", { name: "Play Clip" }));
+  view.unmount();
+  await mount();
+  await act(async () => { finishCommand(true); });
+  expect(screen.getByRole("button", { name: "Play Clip" })).toBeEnabled();
 });
 
 it("keeps playback controls available without a duration and guards busy or stale rows", async () => {

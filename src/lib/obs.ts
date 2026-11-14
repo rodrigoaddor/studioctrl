@@ -557,32 +557,33 @@ export class StudioClient {
     await visit(sceneName);
     return sources;
   }
-  getActiveMedia = async (): Promise<ActiveMedia[]> => {
+  getActiveMedia = async (): Promise<ActiveMedia[] | null> => {
     const obs = this.obs;
     const epoch = this.state.previewEpoch;
     const revision = this.revision;
     if (!obs || this.state.status !== "connected" || !this.state.studio)
-      return [];
+      return null;
     const [{ inputs }, previewSources] = await Promise.all([
       obs.call("GetInputList"),
       this.getPreviewSources(obs, epoch),
     ]);
     const media: ActiveMedia[] = [];
     for (const input of inputs) {
-      if (this.obs !== obs || this.state.previewEpoch !== epoch) return [];
+      if (this.obs !== obs || this.state.previewEpoch !== epoch) return null;
       const kind = input.unversionedInputKind ?? input.inputKind;
       if (kind !== "ffmpeg_source" && kind !== "vlc_source") continue;
       const name = String(input.inputName);
       const { videoActive } = await obs.call("GetSourceActive", { sourceName: name });
-      if (this.obs !== obs || this.state.previewEpoch !== epoch) return [];
+      if (this.obs !== obs || this.state.previewEpoch !== epoch) return null;
       const preview = previewSources.has(name);
       if (!videoActive && !preview) continue;
       const status = await obs.call("GetMediaInputStatus", { inputName: name });
       const live = await liveMediaSource(obs, name, status);
       media.push({ name, live, preview, program: videoActive, state: status.mediaState, duration: status.mediaDuration, cursor: status.mediaCursor });
     }
+    // Synchronization invalidates this read; it does not mean the scenes have no media.
     if (this.obs !== obs || this.state.previewEpoch !== epoch || revision !== this.revision || !this.state.studio)
-      return [];
+      return null;
     return media;
   };
   seekMedia = (inputName: string, mediaCursor: number) => {
@@ -608,6 +609,7 @@ export class StudioClient {
   setMediaPlayback = (inputName: string, action: "play" | "pause" | "stop") => {
     const epoch = this.state.previewEpoch;
     const revision = this.revision;
+    let applied = false;
     return this.command(async (obs) => {
       const [active, status, previewSources] = await Promise.all([
         obs.call("GetSourceActive", { sourceName: inputName }),
@@ -629,7 +631,8 @@ export class StudioClient {
         mediaAction = "OBS_WEBSOCKET_MEDIA_INPUT_ACTION_STOP";
       else return;
       await obs.call("TriggerMediaInputAction", { inputName, mediaAction });
-    });
+      applied = this.obs === obs && this.state.previewEpoch === epoch;
+    }).then(() => applied);
   };
   private async command(
     action: (obs: OBSWebSocket) => Promise<unknown>,
