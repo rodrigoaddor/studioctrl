@@ -171,6 +171,21 @@ export async function generateScenePreviews({
     if (!current())
       throw new GenerationCancelled("Preview generation cancelled.");
   };
+  const captureScene = async (scene: string) => {
+    for (let attempt = 0; attempt < 10; attempt++) {
+      await wait();
+      await check();
+      try {
+        const frame = await capture(scene);
+        await check();
+        if (await save(scene, frame)) return true;
+      } catch (error) {
+        if (error instanceof GenerationCancelled) throw error;
+        // Monitors may own both screenshot slots; retry serially.
+      }
+    }
+    return false;
+  };
   try {
     for (const scene of scenes) {
       await check();
@@ -181,7 +196,7 @@ export async function generateScenePreviews({
       );
       // Capturing Program is safe; activating/seeking shared Program media is not.
       if (active.some((source) => source.videoActive)) {
-        skipped++;
+        if (!(await captureScene(scene))) skipped++;
         completed++;
         continue;
       }
@@ -292,20 +307,7 @@ export async function generateScenePreviews({
             // An unavailable camera/stream must not hide a usable clip later in the scene.
           }
         }
-        let saved = false;
-        for (let attempt = 0; attempt < 10 && !saved; attempt++) {
-          await wait();
-          await check();
-          try {
-            const frame = await capture(scene);
-            await check();
-            saved = await save(scene, frame);
-          } catch (error) {
-            if (error instanceof GenerationCancelled) throw error;
-            // Monitors may own both screenshot slots; retry serially.
-          }
-        }
-        if (!saved) skipped++;
+        if (!(await captureScene(scene))) skipped++;
       } catch (error) {
         if (error instanceof GenerationCancelled) throw error;
         skipped++;

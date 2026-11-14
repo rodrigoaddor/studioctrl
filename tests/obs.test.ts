@@ -339,11 +339,31 @@ describe("OBS v5 integration", () => {
       busy: false, studio: false, preview: null, program: "Starting", hiddenScenes: ["Camera"] });
     expect(requests).toEqual([]);
   });
-  it("discards pending thumbnail hydration after reset", async () => {
+  it.each(["Camera", "Starting"])("resets only %s while preserving other thumbnails and Preview readiness", async (scene) => {
+    vi.mocked(readPreview).mockResolvedValue("data:image/jpeg;base64,saved");
+    await connect();
+    await client.enableStudio();
+    await vi.waitFor(() => expect(Object.keys(client.getSnapshot().thumbnails)).toHaveLength(3));
+    await client.collectPreviews();
+    client.setSceneHidden(scene, true);
+    const before = client.getSnapshot();
+    requests = [];
+    await client.resetPreviews(scene);
+    const expected = { ...before.thumbnails };
+    delete expected[scene];
+    expect(client.getSnapshot()).toMatchObject({
+      thumbnails: expected, preview: before.preview, program: before.program,
+      hiddenScenes: [scene], busy: false,
+      previewReady: scene === before.preview ? null : before.previewReady,
+    });
+    expect(clearPreviews).toHaveBeenCalledExactlyOnceWith([JSON.stringify([url, "Collection A", scene])]);
+    expect(requests).toEqual([]);
+  });
+  it.each([undefined, "Camera"])("discards pending thumbnail hydration after reset (%s)", async (scene) => {
     let resolve!: (frame: string) => void;
     vi.mocked(readPreview).mockImplementation(() => new Promise((done) => { resolve = done; }));
     await connect();
-    await client.resetPreviews();
+    await client.resetPreviews(scene);
     resolve("data:image/jpeg;base64,obsolete");
     await Promise.resolve();
     expect(client.getSnapshot().thumbnails).toEqual({});
@@ -988,6 +1008,36 @@ it("naturally caches a live feed and restores fallback eligibility when the feed
   await client.collectPreviews();
   expect(client.getSnapshot().previewReady).toBeNull();
   expect(client.getSnapshot().thumbnails.Camera).toBeTruthy();
+});
+
+it.each([false, true])("manually regenerates a live scene active on Program (reset first: %s), just as natural collection does", async (resetFirst) => {
+  previewItems.Camera = [
+    { sourceName: "Clip", inputKind: "ffmpeg_source", sceneItemEnabled: true },
+  ];
+  mediaDuration = null;
+  mediaCursor = 0;
+  mediaInputSettings.Clip = {
+    inputKind: "ffmpeg_source",
+    inputSettings: { is_local_file: false },
+  };
+  await connect();
+  await client.enableStudio();
+  await client.collectPreviews();
+  expect(client.getSnapshot().thumbnails.Camera).toBe("data:image/jpeg;base64,frame");
+  if (resetFirst) await client.resetPreviews();
+  vi.mocked(writePreview).mockClear();
+  requests = [];
+
+  await client.generatePreviews("Camera");
+
+  expect(client.getSnapshot().thumbnails.Camera).toBe("data:image/jpeg;base64,frame");
+  expect(client.getSnapshot().error).toBeNull();
+  expect(requests).toContain("GetSourceScreenshot");
+  expect(writePreview).toHaveBeenCalledTimes(1);
+  expect(requests.some((type) => type.startsWith("Set") || type === "TriggerMediaInputAction" || type === "TriggerStudioModeTransition")).toBe(false);
+  expect(preview).toBe("Camera");
+  expect(program).toBe("Starting");
+  expect(mediaCursor).toBe(0);
 });
 
 it.each([false, true])("skips hidden scenes in batch generation with showHiddenScenes=%s", async (showHiddenScenes) => {

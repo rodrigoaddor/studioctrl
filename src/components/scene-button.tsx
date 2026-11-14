@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { ContextMenu } from "radix-ui";
-import { Eye, EyeOff, Image } from "lucide-react";
+import { Eye, EyeOff, Image, ImageOff } from "lucide-react";
 import { cn } from "../lib/utils";
 
 export function SceneButton({
@@ -12,6 +12,7 @@ export function SceneButton({
   onSelect,
   hidden = false,
   onGenerate,
+  onReset,
   onToggleHidden,
 }: {
   name: string;
@@ -22,6 +23,7 @@ export function SceneButton({
   onSelect: () => void;
   hidden?: boolean;
   onGenerate: () => void;
+  onReset: () => void;
   onToggleHidden: () => void;
 }) {
   const contextGesture = useRef(false);
@@ -108,6 +110,14 @@ export function SceneButton({
           >
             <Image className="size-4" /> Generate preview
           </ContextMenu.Item>
+          <ContextMenu.Item
+            disabled={disabled}
+            onSelect={onReset}
+            className="flex cursor-default items-center gap-2 px-2 py-2 text-xs outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50"
+          >
+            <ImageOff className="size-4" /> Reset preview
+          </ContextMenu.Item>
+          <ContextMenu.Separator className="my-1 h-px bg-border" />
           <ContextMenu.Item
             onSelect={onToggleHidden}
             className="flex cursor-default items-center gap-2 px-2 py-2 text-xs outline-hidden select-none focus:bg-accent focus:text-accent-foreground"

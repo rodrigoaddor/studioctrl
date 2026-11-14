@@ -97,6 +97,7 @@ export function Studio({ streaming }: { streaming?: boolean }) {
                     disabled={disabled}
                     hidden={hiddenScenes.includes(scene)}
                     onGenerate={() => void client.generatePreviews(scene)}
+                    onReset={() => void client.resetPreviews(scene)}
                     onToggleHidden={() =>
                       client.setSceneHidden(
                         scene,

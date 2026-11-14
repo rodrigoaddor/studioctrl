@@ -235,6 +235,25 @@ it("opens scene actions without selecting Preview and generates only the request
   await userEvent.setup().click(screen.getByRole("menuitem", { name: "Generate preview" }));
   expect(generate).toHaveBeenCalledExactlyOnceWith("Slides");
 });
+it("resets only the scene chosen in the context menu without selecting Preview", async () => {
+  const select = vi.spyOn(client, "selectScene").mockResolvedValue(undefined);
+  const reset = vi.spyOn(client, "resetPreviews").mockResolvedValue(undefined);
+  render(app());
+  fireEvent.contextMenu(screen.getByRole("button", { name: "Slides" }));
+  await userEvent.setup().click(screen.getByRole("menuitem", { name: "Reset preview" }));
+  expect(reset).toHaveBeenCalledExactlyOnceWith("Slides");
+  expect(select).not.toHaveBeenCalled();
+});
+it.each(["busy", "syncing"])("disables the scene reset action while %s", async (flag) => {
+  const reset = vi.spyOn(client, "resetPreviews").mockResolvedValue(undefined);
+  vi.mocked(useStudio).mockReturnValue({ client, ...state, [flag]: true });
+  render(app());
+  fireEvent.contextMenu(screen.getByRole("button", { name: "Slides" }));
+  const item = screen.getByRole("menuitem", { name: "Reset preview" });
+  expect(item).toHaveAttribute("data-disabled");
+  await userEvent.setup().click(item);
+  expect(reset).not.toHaveBeenCalled();
+});
 it("filters hidden scenes, marks them when revealed, and allows restoring them", async () => {
   const hide = vi.spyOn(client, "setSceneHidden");
   vi.mocked(useStudio).mockReturnValue({ client, ...state, hiddenScenes: ["Slides"] });

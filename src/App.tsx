@@ -6,7 +6,7 @@ import {
   EyeOff,
   Maximize,
   Minimize,
-  RotateCcw,
+  ImageOff,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, Route, Routes, useNavigate } from "react-router-dom";
@@ -188,7 +188,7 @@ export default function App() {
                         disabled={syncing || busy || !!generating}
                         onSelect={() => void client.resetPreviews()}
                       >
-                        <RotateCcw /> Reset Previews
+                        <ImageOff /> Reset Previews
                       </DropdownMenuItem>
                     </DropdownMenuSubContent>
                   </DropdownMenuSub>

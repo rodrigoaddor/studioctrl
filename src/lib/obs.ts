@@ -416,13 +416,22 @@ export class StudioClient {
       ),
     });
   };
-  resetPreviews = async () => {
+  resetPreviews = async (scene?: string) => {
     const obs = this.obs;
     if (!obs || this.state.status !== "connected" || this.state.busy || this.state.syncing || this.state.generating)
       return;
+    const keys = scene === undefined
+      ? [...this.cacheKeys.values()]
+      : this.cacheKeys.has(scene) ? [this.cacheKeys.get(scene)!] : [];
+    if (!keys.length) return;
     const epoch = this.state.previewEpoch + 1;
-    const keys = [...this.cacheKeys.values()];
-    this.update({ busy: true, error: null, thumbnails: {}, previewReady: null, previewEpoch: epoch });
+    const thumbnails = scene === undefined ? {} : { ...this.state.thumbnails };
+    if (scene !== undefined) delete thumbnails[scene];
+    this.update({
+      busy: true, error: null, thumbnails,
+      previewReady: scene === undefined || scene === this.state.preview ? null : this.state.previewReady,
+      previewEpoch: epoch,
+    });
     try {
       await clearPreviews(keys);
     } catch {
@@ -474,7 +483,7 @@ export class StudioClient {
         });
         if (current() && skipped)
           this.update({
-            error: `Preview generation finished. ${skipped} scene(s) skipped: media active on Program or no usable frame. Play those scenes normally to cache them.`,
+            error: `Preview generation finished. ${skipped} scene(s) skipped: no usable frame. Play those scenes normally to cache them.`,
           });
       } finally {
         if (this.obs === obs && this.state.previewEpoch === epoch)

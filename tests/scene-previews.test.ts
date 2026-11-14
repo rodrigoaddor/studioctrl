@@ -117,17 +117,45 @@ it("restores paused positions and bounds a short clip's target", async () => {
   expect(cursor).toBe(1234);
   expect(state).toBe("OBS_MEDIA_STATE_PAUSED");
 });
-it("skips shared Program media without activating or seeking it", async () => {
+it("captures shared Program media without activating or seeking it", async () => {
   active = true;
   const config = options();
   config.scenes = ["Media"];
-  expect(await generateScenePreviews(config)).toBe(1);
-  expect(config.capture).not.toHaveBeenCalled();
+  const result = generateScenePreviews(config);
+  await vi.runAllTimersAsync();
+  expect(await result).toBe(0);
+  expect(config.capture).toHaveBeenCalledWith("Media");
+  expect(config.save).toHaveBeenCalledWith("Media", "frame");
   expect(
     call.mock.calls.some(
       ([type]) => type.startsWith("Set") || type === "TriggerMediaInputAction",
     ),
   ).toBe(false);
+});
+it("retries unusable Program-media frames without mutations and continues to other scenes", async () => {
+  active = true;
+  const config = options();
+  config.save.mockImplementation(async (scene) => scene === "Static");
+  const result = generateScenePreviews(config);
+  await vi.runAllTimersAsync();
+  expect(await result).toBe(1);
+  expect(config.save).toHaveBeenCalledTimes(11);
+  expect(preview).toBe("Original");
+  expect(call.mock.calls.some(([type]) => type === "SetMediaInputCursor" || type === "TriggerMediaInputAction")).toBe(false);
+});
+it("discards a read-only Program-media capture after an external Preview change", async () => {
+  active = true;
+  const config = options();
+  config.capture.mockImplementation(async () => {
+    preview = "Operator choice";
+    return "frame";
+  });
+  const result = generateScenePreviews(config).catch((error: Error) => error);
+  await vi.runAllTimersAsync();
+  expect(await result).toBeInstanceOf(Error);
+  expect(config.save).not.toHaveBeenCalled();
+  expect(preview).toBe("Operator choice");
+  expect(call.mock.calls.some(([type]) => type.startsWith("Set") || type === "TriggerMediaInputAction")).toBe(false);
 });
 it("retries black frames, preserves a previous cache on failure, and continues with other scenes", async () => {
   const config = options();
