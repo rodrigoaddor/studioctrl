@@ -56,7 +56,7 @@ function MediaSeeker({ media, stale, optimisticCursor, playbackPending, onPlayba
     setDragging(false);
   };
   return (
-    <div className="grid min-w-0 gap-2 border border-border bg-card px-4 py-3">
+    <div className="grid min-w-0 gap-2 border-t border-border py-3 first:border-t-0 first:pt-0 last:pb-0">
       <div className="flex min-w-0 items-center justify-between gap-4 text-xs">
         <div className="flex min-w-0 items-center gap-2">
           <span className="truncate font-medium" title={media.name}>{media.name}</span>
@@ -261,12 +261,14 @@ export function MediaSeekers() {
   return (
     <>
     {error && !errorDismissed && <ErrorNotice message="Unable to load active media. Retrying…" onDismiss={() => setErrorDismissed(true)} />}
-    {!!controllableMedia.length && <section aria-label="Active media" className="mt-6 grid gap-3">
-      <h2>
+    {!!controllableMedia.length && <section aria-label="Active media" className="mt-6 grid gap-3 border border-border bg-card p-4 text-card-foreground">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+      {!collapsed && <h3 className="font-heading text-sm font-medium text-preview">Preview</h3>}
+      <h2 className="col-start-2">
         <Button
           type="button"
           variant="ghost"
-          className="w-full justify-start gap-2 bg-transparent px-0 font-heading text-sm hover:bg-transparent aria-expanded:bg-transparent dark:hover:bg-transparent"
+          className="justify-center gap-2 bg-transparent px-0 font-heading text-sm hover:bg-transparent aria-expanded:bg-transparent dark:hover:bg-transparent"
           aria-expanded={!collapsed}
           aria-controls={contentId}
           onClick={toggleCollapsed}
@@ -275,13 +277,14 @@ export function MediaSeekers() {
           Active media
         </Button>
       </h2>
-      <div id={contentId} hidden={collapsed} className="grid grid-cols-1 items-start gap-6 min-[901px]:grid-cols-2">
+      {!collapsed && <h3 className="justify-self-end font-heading text-sm font-medium text-program">Program</h3>}
+      </div>
+      <div id={contentId} hidden={collapsed} className="grid grid-cols-1 border-t border-border pt-4 min-[901px]:grid-cols-2">
         {!collapsed && (["preview", "program"] as const).map((kind) => {
           const label = kind === "preview" ? "Preview" : "Program";
           const sources = controllableMedia.filter((source) => source[kind]);
           return (
-            <section key={kind} aria-label={`${label} media`} className="grid min-w-0 gap-3">
-              <h3 className={`font-heading text-sm font-medium ${kind === "preview" ? "text-preview" : "text-program"}`}>{label}</h3>
+            <section key={kind} aria-label={`${label} media`} className="grid min-w-0 content-start border-border min-[901px]:first:pr-4 last:mt-4 last:border-t last:pt-4 min-[901px]:last:mt-0 min-[901px]:last:border-t-0 min-[901px]:last:border-l min-[901px]:last:pt-0 min-[901px]:last:pl-4">
               {sources.length ? sources.map((source) => (
                 <MediaSeeker
                   key={source.name}
